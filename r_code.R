@@ -100,5 +100,89 @@ require(bbmle)
     fitList[[which_elev]][['larva']][['fit']] <- fit1
     for (param in param_of_interest) fitList[[which_elev]][['larva']][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
   }
- save(fitList,file = 'data/phenology_fits.RData')) 
+ save(fitList,file = 'data/phenology_fits.RData')
 }
+
+# make elevation versus fraction early summer larva plot
+{
+  late <- samples %>%
+    filter(julian > 212) %>%
+    group_by(site) %>%
+    summarise(fall_l = mean(larva),
+              elev = unique(elev))
+  early <- samples %>%
+    filter(julian <= 212) %>%
+    group_by(site) %>%
+    summarise(spring_l = mean(larva))
+  
+  larva_comparision <- late %>%
+    inner_join(early,by='site') %>%
+    mutate(early_frac = spring_l/(spring_l+fall_l) )
+  
+  larva_comparision %>%
+    filter(is.finite(early_frac)) %>%
+    lm(early_frac ~ elev, data = .) %>%
+    summary()
+  
+  pdf('figures/elev_l_frac.pdf',width=6,height=3)
+    larva_comparision %>% 
+      ggplot(aes(elev,early_frac)) +
+      geom_point() +
+      theme_classic() +
+      theme(axis.text = element_text(color='black', size =14),
+            axis.title = element_text(size = 14)) +
+      labs(x = 'Elevation (m)', y = 'Early summer fraction') +
+      stat_smooth(se=F,method='lm',color='black') + 
+      coord_cartesian(xlim=c(120,600))
+  dev.off()
+  
+}
+
+# make plot phenology plot with fit curves
+{
+  load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
+  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
+ 
+   fit1 <- fitList$low$larva$fit
+  pred1 <- twoPeakCurve(1:365)
+  fit1 <- fitList$mid$larva$fit
+  pred2 <- twoPeakCurve(1:365)
+  fit1 <- fitList$high$larva$fit
+  pred3 <- twoPeakCurve(1:365)
+  
+  fit_larvae <- tibble(day = rep(1:365,3),
+                        larva = c(pred1,pred2,pred3), 
+                        larva_frac = c(pred1/sum(pred1),pred2/sum(pred2),pred3/sum(pred3)),
+                        elevCat = c(rep('low',365),rep('mid',365),rep('high',365))) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  
+  labv2 <- tibble(elevCat = c('low','mid','high'),
+                  julian=rep(212,3),
+                  larva=rep(100,3),
+                  lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
+  pdf('figures/l_pheno_fit.pdf',width=7,height=3)
+    samples %>%
+      ggplot(aes(julian,larva)) +
+      geom_point(cex=0.25) +
+      facet_wrap(~elevCat) +
+      theme_classic() +
+      theme(strip.background = element_rect(color='transparent'),
+            strip.text = element_blank(),
+            axis.text = element_text(color='black')) +
+      geom_line(data=fit_larvae,aes(day,larva)) +
+      scale_x_continuous(limits = c(100,300),
+                         #                   breaks =c(121, 152, 182, 213, 244, 274),
+                         #                  labels=c('May 1', 'Jun 1', 'Jul 1', 'Aug 1','Sep 1', 'Oct 1')) +
+                         breaks =c(121,  182, 244),
+                         labels=c('May 1', 'Jul 1','Sep 1')) +
+      scale_y_continuous(limits = c(0,100)) +
+      labs(x='',y=ylab) +
+      geom_text(data=labv2,aes(label=lab),cex=5)
+  dev.off()
+  
+}
+
+
+
