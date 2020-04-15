@@ -143,15 +143,15 @@ require(bbmle)
   samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
  
    fit1 <- fitList$low$larva$fit
-  pred1 <- twoPeakCurve(1:365)
+  smooth1 <- twoPeakCurve(1:365)
   fit1 <- fitList$mid$larva$fit
-  pred2 <- twoPeakCurve(1:365)
+  smooth2 <- twoPeakCurve(1:365)
   fit1 <- fitList$high$larva$fit
-  pred3 <- twoPeakCurve(1:365)
+  smooth3 <- twoPeakCurve(1:365)
   
   fit_larvae <- tibble(day = rep(1:365,3),
-                        larva = c(pred1,pred2,pred3), 
-                        larva_frac = c(pred1/sum(pred1),pred2/sum(pred2),pred3/sum(pred3)),
+                        larva = c(smooth1,smooth2,smooth3), 
+                        larva_frac = c(smooth1/sum(smooth1),smooth2/sum(smooth2),smooth3/sum(smooth3)),
                         elevCat = c(rep('low',365),rep('mid',365),rep('high',365))) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
@@ -303,5 +303,91 @@ require(bbmle)
     
     return(output_tibble)
   }
+}
+
+# make plot comparing model predictions to smoothed observed larval phenology
+{
+  load(file = 'data/phenology_fits.RData') 
+  load(file = 'data/processed_prism.RData')
+  
+  fit1 <- fitList$low$larva$fit
+  smooth1 <- twoPeakCurve(1:365)
+  fit1 <- fitList$mid$larva$fit
+  smooth2 <- twoPeakCurve(1:365)
+  fit1 <- fitList$high$larva$fit
+  smooth3 <- twoPeakCurve(1:365)
+  
+  fit_larvae <- tibble(day = rep(1:365,3),
+                       larva = c(smooth1,smooth2,smooth3), 
+                       larva_frac = c(smooth1/sum(smooth1),smooth2/sum(smooth2),smooth3/sum(smooth3)),
+                       elevCat = c(rep('low',365),rep('mid',365),rep('high',365))) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  
+  # paramters for model
+  params <- list(
+    ovi_m = 243.2, # in degree days base 6 C Rand et al. 2004
+    ovi_sd = 63.1, # in degree days base 6 C Rand et al. 2004
+    ecl_m = 428.5, # in degree days base 11 C Rand et al. 2004
+    ecl_sd = 70.8, # in degree days base 11 C Rand et al. 2004
+    hardening = 21, # in days Daniels et al. 1996
+    start_quest = 10, # in C Ogden et al. 2005
+    max_quest = 25, # in C Ogden et al. 2005
+    quest_slope1 = 0.067, # in 1/C Odgen et al. 2005
+    quest_slope2 = -0.067, # in 1/C Odgen et al. 2005
+    host_find = 0.0207, # in 1/day Odgen et al. 2005
+    mort = 0.006, # in 1/day Odgen et al. 2005
+    diapause = 0.25, # Ogden et al. 2018
+    overwinter_surv = 0.44 # Lindsay et al. 1995
+  )
+  
+  # foote is the representative low elevaiton site for climate
+  pred_low <- tibble(
+    day = 1:365,
+    larva_frac = larval_quest(siteClimate$Foote$tmean[1:365], params)$qst_norm,
+    elevCat = rep('low',365)    
+  )
+
+  # gorge is the representative mid elevaiton site for climate  
+  pred_mid <- tibble(
+    day = 1:365,
+    larva_frac = larval_quest(siteClimate$Gorge$tmean[1:365], params)$qst_norm,
+    elevCat = rep('mid',365)    
+  )
+
+  # snowbowl is the representative high elevaiton site for climate  
+  pred_high <- tibble(
+    day = 1:365,
+    larva_frac = larval_quest(siteClimate$Snowbowl$tmean[1:365], params)$qst_norm,
+    elevCat = rep('high',365)    
+  )
+  
+  pred_larvae <- rbind(pred_low, pred_mid, pred_high) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  
+  labv3 <- tibble(elevCat = c('low','mid','high'),
+                  day=rep(175,3),
+                  larva_frac=rep(0.035,3),
+                  lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  
+  pdf('figures/pheno_v_mod.pdf',width=7,height=3)
+    fit_larvae %>%
+      ggplot(aes(day,larva_frac)) +
+      geom_path() +
+      facet_wrap(~elevCat) +
+      theme_classic() +
+      theme(strip.background = element_rect(color='transparent'),
+            strip.text = element_blank(),
+            axis.text = element_text(color='black'),
+            legend.position = c(0.5,0.5)) +
+      scale_x_continuous(limits = c(100,300),
+                         #                   breaks =c(121, 152, 182, 213, 244, 274),
+                         #                  labels=c('May 1', 'Jun 1', 'Jul 1', 'Aug 1','Sep 1', 'Oct 1')) +
+                         breaks =c(121,  182, 244),
+                         labels=c('May 1', 'Jul 1','Sep 1')) +
+      labs(x='',y='Fraction questing') +
+      geom_text(data=labv3,aes(label=lab),cex=5) +
+      geom_path(data=pred_larvae,lty=2)
+  dev.off()
 }
 
