@@ -212,7 +212,7 @@ require(bbmle)
   dev.off()
 }
 
-# larval development and question model
+# larval development and quest model
 {
   # parameters for model
   params <- list(
