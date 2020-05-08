@@ -231,9 +231,6 @@ require(bbmle)
     overwinter_surv = 0.44 # Lindsay et al. 1995
   )
   
-  # fake temp to see if it works
-  # tmean <- 17.5*cos(mydays*2*pi/365 - pi) + 7
- 
   # takes in daily average temp at leaf litter and parameters
   # outputs fraction of larvae oviposited, ecolosed, questing on each day
   larval_quest <- function(tmean, params)
@@ -266,7 +263,7 @@ require(bbmle)
     # this section calculates the fraction of cohort questing on each day
     # sums to greater than 1 since a tick can quest on more than one day
     questing <- rep(0, tot_day)
-    days_to_winter <- min(which(tmean<10)[which(tmean<params$start_quest) > sum_sol]) #here by 'winter' i just mean when temp falls below that which larvae quest
+    days_to_winter <- min(which(tmean<params$start_quest)[which(tmean<params$start_quest) > sum_sol]) #here by 'winter' i just mean when temp falls below that which larvae quest
     active <- 0 # tracks number of active ticks
     
     # fraction of ticks active on a given day that will quest based on temp
