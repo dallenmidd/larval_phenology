@@ -137,7 +137,7 @@ require(bbmle)
   
 }
 
-# make plot phenology plot with fit curves
+# make phenology plot with fit curves
 {
   load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
   samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
