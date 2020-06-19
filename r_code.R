@@ -104,6 +104,7 @@ require(bbmle)
 
 # make elevation versus fraction early summer larva plot
 {
+  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
   late <- samples %>%
     filter(julian > 212) %>%
     group_by(site) %>%
@@ -123,13 +124,13 @@ require(bbmle)
     lm(early_frac ~ elev, data = .) %>%
     summary()
   
-  pdf('figures/elev_l_frac.pdf',width=6,height=3)
+  pdf('figures/elev_l_frac.pdf',width=3.14,height=2.5)
     larva_comparision %>% 
       ggplot(aes(elev,early_frac)) +
       geom_point() +
       theme_classic() +
-      theme(axis.text = element_text(color='black', size =14),
-            axis.title = element_text(size = 14)) +
+      theme(axis.text = element_text(color='black', size =10),
+            axis.title = element_text(size = 10)) +
       labs(x = 'Elevation (m)', y = 'Early summer fraction') +
       stat_smooth(se=F,method='lm',color='black') + 
       coord_cartesian(xlim=c(120,600))
@@ -161,7 +162,7 @@ require(bbmle)
                   lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  pdf('figures/l_pheno_fit.pdf',width=7,height=3)
+  pdf('figures/l_pheno_fit.pdf',width=6.68,height=3)
     samples %>%
       ggplot(aes(julian,larva)) +
       geom_point(cex=0.25) +
@@ -169,7 +170,8 @@ require(bbmle)
       theme_classic() +
       theme(strip.background = element_rect(color='transparent'),
             strip.text = element_blank(),
-            axis.text = element_text(color='black')) +
+            axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10)) +
       geom_line(data=fit_larvae,aes(day,larva)) +
       scale_x_continuous(limits = c(100,300),
                          #                   breaks =c(121, 152, 182, 213, 244, 274),
@@ -178,7 +180,7 @@ require(bbmle)
                          labels=c('May 1', 'Jul 1','Sep 1')) +
       scale_y_continuous(limits = c(0,100)) +
       labs(x='',y=ylab) +
-      geom_text(data=labv2,aes(label=lab),cex=5)
+      geom_text(data=labv2,aes(label=lab),size=4)
   dev.off()
   
 }
@@ -188,15 +190,15 @@ require(bbmle)
   load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
   # compare parameters
   paramcomp <- tibble(
-    elev = c('<200 m','<200 m','200 - 400 m','200 - 400 m','>400 m','>400 m'),
+    elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
     when = rep(c('Early','Late'),3),
     param = c(fitList$low$larva$peak_e[1],fitList$low$larva$peak_l[1],fitList$mid$larva$peak_e[1],fitList$mid$larva$peak_l[1],fitList$high$larva$peak_e[1],fitList$high$larva$peak_l[1]),
     upper_param = c(fitList$low$larva$peak_e[3],fitList$low$larva$peak_l[3],fitList$mid$larva$peak_e[3],fitList$mid$larva$peak_l[3],fitList$high$larva$peak_e[3],fitList$high$larva$peak_l[3]),
     lower_param =c(fitList$low$larva$peak_e[2],fitList$low$larva$peak_l[2],fitList$mid$larva$peak_e[2],fitList$mid$larva$peak_l[2],fitList$high$larva$peak_e[2],fitList$high$larva$peak_l[2]),
   ) %>% 
-    mutate(elev= factor(elev,levels = c('<200 m','200 - 400 m','>400 m')))
+    mutate(elev= factor(elev,levels = c('<200 m','200-400 m','>400 m')))
   
-  pdf('figures/peak_param_comp.pdf',width=5,height=4)
+  pdf('figures/peak_param_comp.pdf',width=3.14,height=3)
     ylab <- expression(paste('Peak (larvae per 200 ',m^2,')'))
     paramcomp %>%
       ggplot(aes(when,param)) +
@@ -205,7 +207,9 @@ require(bbmle)
       geom_errorbar(aes(ymin=lower_param,ymax=upper_param), width=0.5) +
       theme_classic() +
       theme(strip.background = element_rect(color='transparent'),
-            axis.text = element_text(color='black')) +
+            axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
+            strip.text = element_text(size = 10)) +
       labs(x='',y=ylab) +
       scale_y_log10(breaks=c(1e-2,1e-1,1,1e1,1e2),
                     labels = c(.001,0.1,1,10,100))    
@@ -367,7 +371,7 @@ require(bbmle)
                   lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
-  pdf('figures/pheno_v_mod.pdf',width=7,height=3)
+  pdf('figures/pheno_v_mod.pdf',width=6.68,height=3)
     fit_larvae %>%
       ggplot(aes(day,larva_frac)) +
       geom_path() +
@@ -375,7 +379,8 @@ require(bbmle)
       theme_classic() +
       theme(strip.background = element_rect(color='transparent'),
             strip.text = element_blank(),
-            axis.text = element_text(color='black'),
+            axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
             legend.position = c(0.5,0.5)) +
       scale_x_continuous(limits = c(100,300),
                          #                   breaks =c(121, 152, 182, 213, 244, 274),
@@ -383,8 +388,9 @@ require(bbmle)
                          breaks =c(121,  182, 244),
                          labels=c('May 1', 'Jul 1','Sep 1')) +
       labs(x='',y='Fraction questing') +
-      geom_text(data=labv3,aes(label=lab),cex=5) +
+      geom_text(data=labv3,aes(label=lab),cex=4) +
       geom_path(data=pred_larvae,lty=2)
   dev.off()
+
 }
 
