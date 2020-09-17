@@ -1,6 +1,6 @@
 # larval_phenology
 
-Data and R code for a manuscript in review. The manuscript measures how larval _Ixodes scapularis_ questing phenology changes along an elevation gradient. It then presents a mechanistic, temperature-driven model which explains that variation in questing phenology.
+Data and R code for a manuscript in preparation. The manuscript measures how larval _Ixodes scapularis_ questing phenology changes along an elevation gradient. It then presents a mechanistic, temperature-driven model which explains that variation in questing phenology.
 
  - `data/drag_sampling.csv` gives the raw data from the study. This gives the number of larval ticks found on each day of sampling.
 - `data/phenology_fits.RData` gives the fit phenology curves to `data/drag_sampling.csv`. 
