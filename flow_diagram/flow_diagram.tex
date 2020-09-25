@@ -25,10 +25,10 @@
 		\node[mynode](gravid){Gravid female};
 		\node[below = 0.5 cm of gravid,mynode](egg){Oviposition};
 		\draw[myarrow1] (gravid) -- (egg);
-		\node[below = 0.5 cm of egg,mynode](ecolsion){Ecolosion};
-		\draw[myarrow1] (egg) -- (ecolsion);
-		\node[below = 0.5 cm of ecolsion,mynode](hardening){Hardening};
-		\draw[myarrow2] (ecolsion) -- (hardening);
+		\node[below = 0.5 cm of egg,mynode](eclsion){Eclosion};
+		\draw[myarrow1] (egg) -- (eclsion);
+		\node[below = 0.5 cm of eclsion,mynode](hardening){Hardening};
+		\draw[myarrow2] (eclsion) -- (hardening);
 		\node[below = 0.5 cm of hardening,mynode](active){Active};
 		\draw[myarrow2] (hardening) -- (active);
 		\node[below right = 0.25 cm of active,mynode](winter){Overwinter};
@@ -43,7 +43,7 @@
 		\draw[myarrow2] (quest) -- (dummy2) node[above = 0.15 cm,midway]{Mortality};
 		\node[below left = 0.5 cm of quest,mynode](dummy3){};
 		\draw[myarrow2] (quest) -- (dummy3) node[below = 0.15 cm,midway]{Find host};
-		\draw[myarrow2, in = 90, out = 0] (ecolsion) to node[midway]{Diapause} (winter);
+		\draw[myarrow2, in = 90, out = 0] (eclsion) to node[midway]{Diapause} (winter);
 		\node[below =1cm of active,mynode](dummy3){};
 		\draw[myarrow2] (active) -- (dummy3) node[below]{Mortality};
 

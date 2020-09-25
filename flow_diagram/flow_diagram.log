@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.8)  16 JUN 2020 14:36
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.8)  25 SEP 2020 16:20
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -463,7 +463,7 @@ Overfull \hbox (61.02954pt too wide) in paragraph at lines 50--51
 (./flow_diagram.aux) ) 
 Here is how much of TeX's memory you used:
  12505 strings out of 492616
- 258520 string characters out of 6129482
+ 258512 string characters out of 6129482
  285953 words of memory out of 5000000
  16207 multiletter control sequences out of 15000+600000
  7599 words of font info for 18 fonts, out of 8000000 for 9000
@@ -472,7 +472,7 @@ Here is how much of TeX's memory you used:
 {/usr/local/texlive/2019/texmf-dist/fonts/enc/dvips/base/
 8r.enc}</usr/local/texlive/2019/texmf-dist/fonts/type1/urw/helvetic/uhvr8a.pfb>
 
-Output written on flow_diagram.pdf (1 page, 8976 bytes).
+Output written on flow_diagram.pdf (1 page, 8974 bytes).
 PDF statistics:
  16 PDF objects out of 1000 (max. 8388607)
  11 compressed objects within 1 object stream
