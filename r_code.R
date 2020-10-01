@@ -102,6 +102,56 @@ require(bbmle)
  save(fitList,file = 'data/phenology_fits.RData')
 }
 
+
+# fit curves to phenology patterns for each site
+{
+  
+  samplesMod <- samples %>%
+    mutate(site = ifelse(site == 'BRF2','BRF',site),
+           site = ifelse(site %in% c('Lourie','Major'),'Snake',site)) %>%
+    filter(!(site %in% c('Snowbowl', 'Crystal'))) %>%
+    mutate(site = factor(site, levels = c('Foote','Chipman','Snake','Gorge','Chipman2','BRF','SPIN', 'Frost','Gilmore')))    
+
+  samplesMod %>%
+    ggplot(aes(julian,larva)) +
+    geom_point() +
+    facet_wrap(~site) +
+    coord_cartesian(ylim=c(0,75)) +
+    stat_smooth(se=F)
+  
+  fitList<-list()
+  mysites <- samplesMod %>% pull(site) %>% unique() 
+  mysites2 <- mysites[!mysites %in% c('Snowbowl', 'Crystal')]
+  
+  for (s in mysites2) fitList[[s]] <- list()
+
+  param_of_interest <- c('peak_e', 'tau_e', 'mu_e', 'peak_l', 'tau_l', 'mu_l', 'sigma_l', 'k')
+  julianSt <- 120
+  julianEnd <- 305
+  
+  paramGuess <- list()
+  paramGuess[['low']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
+  paramGuess[['mid']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+  paramGuess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
+  
+  
+  for (s in mysites2)
+  {
+    subSetData <- samplesMod %>% filter(site == s)
+    dataList <- with(subSetData,list(day = julian, tickNum = larva))
+    which_elev <- ifelse(s %in% c('Foote', 'Snake', 'Chipman'),'low',ifelse(s %in% c('Frost','Gilmore','SPIN','high','mid')))
+    fit1 <- mle2(twoPeak, start=paramGuess[[which_elev]], data=dataList,method='BFGS')
+    # with(subSetData,plot(julian,larva))
+    # curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE)
+    fitList[[s]][['fit']] <- fit1
+    for (param in param_of_interest) fitList[[s]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
+  }
+  save(fitList,file = 'data/phenology_fits_bysite.RData')
+}
+
+
+
+
 # make elevation versus fraction early summer larva plot
 {
   samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
