@@ -132,7 +132,7 @@ require(bbmle)
   
   paramGuess <- list()
   paramGuess[['low']] <- list(peak_e=30, tau_e=150, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
-  paramGuess[['mid']] <- list(peak_e=25, tau_e=150, mu_e=20, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+  paramGuess[['mid']] <- list(peak_e=5, tau_e=160, mu_e=15, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
   paramGuess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
   
   for (s in mysites2)
@@ -144,18 +144,18 @@ require(bbmle)
     # with(subSetData,plot(julian,larva))
     # curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE)
     fitList[[s]][['fit']] <- fit1
-    for (param in param_of_interest) {
-       if (which_elev == 'high' & param == 'mu_l')
-       {
-         fitList[[s]][[param]] <- c(coef(fit1)['mu_l'], coef(fit1)['mu_l']-25,coef(fit1)['mu_l']+25)
-       } else {
-        fitList[[s]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
-       }
-     }
+   # for (param in param_of_interest) {
+   #    if (which_elev == 'high' & param == 'mu_l')
+  #     {
+   #      fitList[[s]][[param]] <- c(coef(fit1)['mu_l'], coef(fit1)['mu_l']-25,coef(fit1)['mu_l']+25)
+  #     } else {
+   #     fitList[[s]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
+  #     }
+   #  }
     print(s)
   }
   
-  s <- 'Chipman'
+  s <- 'BRF'
   subSetData <- samplesMod %>% filter(site == s)
   fit1 <- fitList[[s]][['fit']]
   pred <- predtib <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurve(julianSt:julianEnd))
