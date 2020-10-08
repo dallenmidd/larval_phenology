@@ -132,9 +132,9 @@ require(bbmle)
   
   paramGuess <- list()
   paramGuess[['low']] <- list(peak_e=30, tau_e=150, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
-  paramGuess[['mid']] <- list(peak_e=5, tau_e=160, mu_e=15, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+  paramGuess[['mid']] <- list(peak_e=5, tau_e=170, mu_e=10, peak_l=5, tau_l=195, mu_l=50, sigma_l=0.1,k=0.2)
   paramGuess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
-  
+    
   for (s in mysites2)
   {
     subSetData <- samplesMod %>% filter(site == s)
@@ -144,21 +144,22 @@ require(bbmle)
     # with(subSetData,plot(julian,larva))
     # curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE)
     fitList[[s]][['fit']] <- fit1
-   # for (param in param_of_interest) {
-   #    if (which_elev == 'high' & param == 'mu_l')
-  #     {
-   #      fitList[[s]][[param]] <- c(coef(fit1)['mu_l'], coef(fit1)['mu_l']-25,coef(fit1)['mu_l']+25)
-  #     } else {
-   #     fitList[[s]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
-  #     }
-   #  }
+    for (param in param_of_interest) {
+       if (which_elev == 'high' & param == 'mu_l')
+       {
+        fitList[[s]][[param]] <- c(coef(fit1)['mu_l'], coef(fit1)['mu_l']-25,coef(fit1)['mu_l']+25)
+       } else {
+        fitList[[s]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
+        print(param)
+       }
+     }
     print(s)
   }
   
-  s <- 'BRF'
+  s <- 'Chipman'
   subSetData <- samplesMod %>% filter(site == s)
   fit1 <- fitList[[s]][['fit']]
-  pred <- predtib <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurve(julianSt:julianEnd))
+  pred <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurve(julianSt:julianEnd))
   
   ggplot(subSetData,aes(julian,larva)) +
     geom_point() +
@@ -171,42 +172,41 @@ require(bbmle)
 
 # plot range of fits
 {
-  # This code doesn't work!!!
+
+  s <- 'Frost'
+  subSetData <- samplesMod %>% filter(site == s)
+  fit1 <- fitList[[s]][['fit']]
+  pred <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurve(julianSt:julianEnd), fitnum = rep(1,length(julianSt:julianEnd)))
+  j<-1
   
-  elev <- 'mid'
-  lifestage <- 'larva'
-  subSetData <- subset(samples, elev>=200 & elev < 410)
-  with(subSetData,plot(julian,larva,xlim=c(julianSt,julianEnd),ylim=c(0,100)))
-  dataList <- with(subSetData,list(day = julian, tickNum = larva))
-  fit1 <- fitList[[elev]][[lifestage]]$fit
-  curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE,lwd=1.5)
-  
-  
-  doesFit <- numeric(25000)
-  paramList <- list()
-  
-  
-  for (i in 1:25000)
+  while (j <100)
   {
-    peak_e <- runif(1,fitList[[elev]][[lifestage]]$peak_e[2],fitList[[elev]][[lifestage]]$peak_e[3])
-    tau_e <- runif(1,fitList[[elev]][[lifestage]]$tau_e[2],fitList[[elev]][[lifestage]]$tau_e[3])
-    mu_e <- runif(1,fitList[[elev]][[lifestage]]$mu_e[2],fitList[[elev]][[lifestage]]$mu_e[3])
-    peak_l <- runif(1,fitList[[elev]][[lifestage]]$peak_l[2],fitList[[elev]][[lifestage]]$peak_l[3])
-    tau_l <- runif(1,fitList[[elev]][[lifestage]]$tau_l[2],fitList[[elev]][[lifestage]]$tau_l[3])
-    mu_l <- runif(1,fitList[[elev]][[lifestage]]$mu_l[2],fitList[[elev]][[lifestage]]$mu_l[3])
-    sigma_l <- runif(1,fitList[[elev]][[lifestage]]$sigma_l[2],fitList[[elev]][[lifestage]]$sigma_l[3])
-    myK <- coef(fitList[[elev]][[lifestage]]$fit)['k']
+    peak_e <- runif(1,fitList[[s]]$peak_e[2],fitList[[s]]$peak_e[3])
+    tau_e <- runif(1,fitList[[s]]$tau_e[2],fitList[[s]]$tau_e[3])
+    mu_e <- runif(1,fitList[[s]]$mu_e[2],fitList[[s]]$mu_e[3])
+    peak_l <- runif(1,fitList[[s]]$peak_l[2],fitList[[s]]$peak_l[3])
+    tau_l <- runif(1,fitList[[s]]$tau_l[2],fitList[[s]]$tau_l[3])
+    mu_l <- runif(1,fitList[[s]]$mu_l[2],fitList[[s]]$mu_l[3])
+    sigma_l <- runif(1,fitList[[s]]$sigma_l[2],fitList[[s]]$sigma_l[3])
+    myK <- coef(fitList[[s]]$fit)['k']
     
-    doesFit[i] <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, dataList$day, dataList$tickNum) < -logLik(fitList[[elev]][[lifestage]]$fit) +  2,1,0)
-    # doesFit[i] <-logNorm(peak, tau, mu, sigma,myK, dataList$day, dataList$tickNum)
-    paramList[[i]] <- list(peak_e=peak_e, tau_e=tau_e, mu_e=mu_e,peak_l=peak_l, tau_l=tau_l, sigma_l=sigma_l, mu_l=mu_l, k=myK)
-    
+    doesFit <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, subSetData$julian, subSetData$larva) < -logLik(fitList[[s]]$fit) +  2,1,0)
+
     twoPeakCurveTemp <- function(x) {twoPeakCurve(x,peak_e=peak_e, tau_e=tau_e, mu_e=mu_e,peak_l=peak_l, tau_l=tau_l, mu_l=mu_l, sigma_l=sigma_l)}
-    if (doesFit[i] == 1) curve(twoPeakCurveTemp,from=julianSt,to=julianEnd,add=TRUE, lwd=1,col=rgb(0,0,0,0.2))
+    if (doesFit)
+    {
+      j <- j + 1
+      temp_pred <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurveTemp(julianSt:julianEnd), fitnum = rep(j,length(julianSt:julianEnd)))
+      pred <- rbind(pred,temp_pred)
+      print(j)
+    }
     
   }
   
-  
+  pred %>%
+    ggplot(aes(julian,larva)) +
+    geom_path(alpha = 0.1) +
+    geom_point(data = subSetData)
   
 }
 
