@@ -74,12 +74,11 @@ require(bbmle)
 
 # fit curves to phenology patterns for three elevation classes
 {
-  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
+  samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
   fitList<-list()
   fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list() 
-  fitList[['low']][['nymph']] <- list(); fitList[['low']][['larva']] <- list(); fitList[['mid']][['nymph']] <- list(); fitList[['mid']][['larva']] <- list(); fitList[['high']][['nymph']] <- list(); fitList[['high']][['larva']] <- list() 
-  
-  param_of_interest <- c('peak_e', 'peak_l')
+
+  param_of_interest <- c('peak_e', 'tau_e', 'mu_e', 'peak_l', 'tau_l', 'mu_l', 'sigma_l', 'k')
   julianSt <- 120
   julianEnd <- 305
   
@@ -88,7 +87,6 @@ require(bbmle)
   paramGuess[['mid']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
   paramGuess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
   
-    
   for (which_elev in c('low', 'mid', 'high'))
   {
     subSetData <- samples %>% filter(elevCat == which_elev)
@@ -96,8 +94,15 @@ require(bbmle)
     fit1 <- mle2(twoPeak, start=paramGuess[[which_elev]], data=dataList,method='BFGS')
     # with(subSetData,plot(julian,larva))
     # curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE)
-    fitList[[which_elev]][['larva']][['fit']] <- fit1
-    for (param in param_of_interest) fitList[[which_elev]][['larva']][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
+    fitList[[which_elev]][['fit']] <- fit1
+    for (param in param_of_interest) {
+      if(param == 'mu_l' & which_elev == 'high')
+      {
+        fitList[[which_elev]][[param]] <- c(coef(fit1)['mu_l'], coef(fit1)['mu_l']-25,coef(fit1)['mu_l']+25)
+      } else {
+        fitList[[which_elev]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
+      }  
+    }
   }
  save(fitList,file = 'data/phenology_fits.RData')
 }
@@ -134,7 +139,8 @@ require(bbmle)
   paramGuess[['low']] <- list(peak_e=30, tau_e=150, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
   paramGuess[['mid']] <- list(peak_e=5, tau_e=170, mu_e=10, peak_l=5, tau_l=195, mu_l=50, sigma_l=0.1,k=0.2)
   paramGuess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
-    
+  do_conf_int <- TRUE  
+  
   for (s in mysites2)
   {
     subSetData <- samplesMod %>% filter(site == s)
@@ -144,6 +150,8 @@ require(bbmle)
     # with(subSetData,plot(julian,larva))
     # curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE)
     fitList[[s]][['fit']] <- fit1
+    if (do_conf_int)
+    {
     for (param in param_of_interest) {
        if (which_elev == 'high' & param == 'mu_l')
        {
@@ -152,11 +160,12 @@ require(bbmle)
         fitList[[s]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
         print(param)
        }
-     }
+    }
+    }
     print(s)
   }
   
-  s <- 'Chipman'
+  s <- 'Foote'
   subSetData <- samplesMod %>% filter(site == s)
   fit1 <- fitList[[s]][['fit']]
   pred <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurve(julianSt:julianEnd))
@@ -170,43 +179,46 @@ require(bbmle)
 }
 
 
-# plot range of fits
+# get range of phenology fits
 {
-
-  s <- 'Frost'
-  subSetData <- samplesMod %>% filter(site == s)
-  fit1 <- fitList[[s]][['fit']]
-  pred <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurve(julianSt:julianEnd), fitnum = rep(1,length(julianSt:julianEnd)))
-  j<-1
-  
-  while (j <100)
+  samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
+  load(file = 'data/phenology_fits.RData')
+  pred <- tibble(julian = numeric(), larva = numeric(), larva_frac = numeric(),fitnum = numeric(),elevCat= character())
+  for (which_elev in c('low', 'mid', 'high'))
   {
-    peak_e <- runif(1,fitList[[s]]$peak_e[2],fitList[[s]]$peak_e[3])
-    tau_e <- runif(1,fitList[[s]]$tau_e[2],fitList[[s]]$tau_e[3])
-    mu_e <- runif(1,fitList[[s]]$mu_e[2],fitList[[s]]$mu_e[3])
-    peak_l <- runif(1,fitList[[s]]$peak_l[2],fitList[[s]]$peak_l[3])
-    tau_l <- runif(1,fitList[[s]]$tau_l[2],fitList[[s]]$tau_l[3])
-    mu_l <- runif(1,fitList[[s]]$mu_l[2],fitList[[s]]$mu_l[3])
-    sigma_l <- runif(1,fitList[[s]]$sigma_l[2],fitList[[s]]$sigma_l[3])
-    myK <- coef(fitList[[s]]$fit)['k']
-    
-    doesFit <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, subSetData$julian, subSetData$larva) < -logLik(fitList[[s]]$fit) +  2,1,0)
-
-    twoPeakCurveTemp <- function(x) {twoPeakCurve(x,peak_e=peak_e, tau_e=tau_e, mu_e=mu_e,peak_l=peak_l, tau_l=tau_l, mu_l=mu_l, sigma_l=sigma_l)}
-    if (doesFit)
+    subSetData <- samples %>% filter(elevCat == which_elev)
+    j<-0
+    while (j <100)
     {
-      j <- j + 1
-      temp_pred <- tibble(julian =julianSt:julianEnd, larva = twoPeakCurveTemp(julianSt:julianEnd), fitnum = rep(j,length(julianSt:julianEnd)))
-      pred <- rbind(pred,temp_pred)
-      print(j)
-    }
-    
-  }
+      peak_e <- runif(1,fitList[[which_elev]]$peak_e[2],fitList[[which_elev]]$peak_e[3])
+      tau_e <- runif(1,fitList[[which_elev]]$tau_e[2],fitList[[which_elev]]$tau_e[3])
+      mu_e <- runif(1,fitList[[which_elev]]$mu_e[2],fitList[[which_elev]]$mu_e[3])
+      peak_l <- runif(1,fitList[[which_elev]]$peak_l[2],fitList[[which_elev]]$peak_l[3])
+      tau_l <- runif(1,fitList[[which_elev]]$tau_l[2],fitList[[which_elev]]$tau_l[3])
+      mu_l <- runif(1,fitList[[which_elev]]$mu_l[2],fitList[[which_elev]]$mu_l[3])
+      sigma_l <- runif(1,fitList[[which_elev]]$sigma_l[2],fitList[[which_elev]]$sigma_l[3])
+      myK <- coef(fitList[[which_elev]]$fit)['k']
+      
+      doesFit <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, subSetData$julian, subSetData$larva) < -logLik(fitList[[which_elev]]$fit) +  2,1,0)
   
-  pred %>%
-    ggplot(aes(julian,larva)) +
-    geom_path(alpha = 0.1) +
-    geom_point(data = subSetData)
+      twoPeakCurveTemp <- function(x) {twoPeakCurve(x,peak_e=peak_e, tau_e=tau_e, mu_e=mu_e,peak_l=peak_l, tau_l=tau_l, mu_l=mu_l, sigma_l=sigma_l)}
+      if (doesFit)
+      {
+        j <- j + 1
+        temp_pred <-tibble(
+            julian =1:365, 
+            larva = twoPeakCurveTemp(1:365), 
+            larva_frac = larva/sum(larva), 
+            fitnum = rep(j,365),
+            elevCat = which_elev)
+        pred <- rbind(pred,temp_pred)
+        print(j)
+      }
+      
+    }
+  }
+  pheno_smooth <- pred  %>% mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  save(pheno_smooth, file = 'data/smoothed_pheno.RData')
   
 }
 
@@ -249,31 +261,21 @@ require(bbmle)
 
 # make phenology plot with fit curves
 {
-  load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
-  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
+  load(file = 'data/smoothed_pheno.RData') 
+  samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
+    mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')),
+           fitnum = 1)
    
-   fit1 <- fitList$low$larva$fit
-  smooth1 <- twoPeakCurve(1:365)
-  fit1 <- fitList$mid$larva$fit
-  smooth2 <- twoPeakCurve(1:365)
-  fit1 <- fitList$high$larva$fit
-  smooth3 <- twoPeakCurve(1:365)
-  
-  fit_larvae <- tibble(day = rep(1:365,3),
-                        larva = c(smooth1,smooth2,smooth3), 
-                        larva_frac = c(smooth1/sum(smooth1),smooth2/sum(smooth2),smooth3/sum(smooth3)),
-                        elevCat = c(rep('low',365),rep('mid',365),rep('high',365))) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  
   labv2 <- tibble(elevCat = c('low','mid','high'),
                   julian=rep(212,3),
-                  larva=rep(100,3),
-                  lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
+                  larva=rep(200,3),
+                  lab = c('<200 m', '200 - 400 m', '>400 m'),
+                  fitnum = 1) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  pdf('figures/l_pheno_fit.pdf',width=6.68,height=3)
+  pdf('figures/l_pheno_fit_CI.pdf',width=6.68,height=3)
     samples %>%
-      ggplot(aes(julian,larva)) +
+      ggplot(aes(julian,larva,group = fitnum)) +
       geom_point(cex=0.25) +
       facet_wrap(~elevCat) +
       theme_classic() +
@@ -281,13 +283,13 @@ require(bbmle)
             strip.text = element_blank(),
             axis.text = element_text(color='black',size = 10),
             axis.title = element_text(size = 10)) +
-      geom_line(data=fit_larvae,aes(day,larva)) +
+      geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.05) +
       scale_x_continuous(limits = c(100,300),
                          #                   breaks =c(121, 152, 182, 213, 244, 274),
                          #                  labels=c('May 1', 'Jun 1', 'Jul 1', 'Aug 1','Sep 1', 'Oct 1')) +
                          breaks =c(121,  182, 244),
                          labels=c('May 1', 'Jul 1','Sep 1')) +
-      scale_y_continuous(limits = c(0,100)) +
+      scale_y_continuous(limits = c(0,200)) +
       labs(x='',y=ylab) +
       geom_text(data=labv2,aes(label=lab),size=4)
   dev.off()
@@ -346,7 +348,7 @@ require(bbmle)
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  pdf('figures/l_pheno_fit.pdf',width=6.68,height=3)
+  pdf('figures/l_pheno_fit_bysite.pdf',width=6,height=5)
     samplesMod %>%
       ggplot(aes(julian,larva)) +
       geom_point(cex=0.25) +
@@ -377,9 +379,9 @@ require(bbmle)
   paramcomp <- tibble(
     elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
     when = rep(c('Early','Late'),3),
-    param = c(fitList$low$larva$peak_e[1],fitList$low$larva$peak_l[1],fitList$mid$larva$peak_e[1],fitList$mid$larva$peak_l[1],fitList$high$larva$peak_e[1],fitList$high$larva$peak_l[1]),
-    upper_param = c(fitList$low$larva$peak_e[3],fitList$low$larva$peak_l[3],fitList$mid$larva$peak_e[3],fitList$mid$larva$peak_l[3],fitList$high$larva$peak_e[3],fitList$high$larva$peak_l[3]),
-    lower_param =c(fitList$low$larva$peak_e[2],fitList$low$larva$peak_l[2],fitList$mid$larva$peak_e[2],fitList$mid$larva$peak_l[2],fitList$high$larva$peak_e[2],fitList$high$larva$peak_l[2]),
+    param = c(fitList$low$peak_e[1],fitList$low$peak_l[1],fitList$mid$peak_e[1],fitList$mid$peak_l[1],fitList$high$peak_e[1],fitList$high$peak_l[1]),
+    upper_param = c(fitList$low$peak_e[3],fitList$low$peak_l[3],fitList$mid$peak_e[3],fitList$mid$peak_l[3],fitList$high$peak_e[3],fitList$high$peak_l[3]),
+    lower_param =c(fitList$low$peak_e[2],fitList$low$peak_l[2],fitList$mid$peak_e[2],fitList$mid$peak_l[2],fitList$high$peak_e[2],fitList$high$peak_l[2]),
   ) %>% 
     mutate(elev= factor(elev,levels = c('<200 m','200-400 m','>400 m')))
   
@@ -403,6 +405,41 @@ require(bbmle)
 
 # larval development and quest model
 {
+  
+  params_with_CI <- list(
+    ovi_m = c(200,280),
+    ovi_sd = c(50,70),
+    ecl_m = c(375,475),
+    ecl_sd = c(60,80),
+    hardening = c(15,30),
+    start_quest = c(7,13),
+    max_quest = c(22,28),
+    quest_slope2 = c(-0.1,-0.03),
+    host_find = c(0.01,0.03),
+    mort = c(0.003,0.012),
+    diapause = c(0.1,0.5),
+    overwinter_surv = c(0.2,0.6)
+  )
+  
+  rand_param <- function(p)
+  {
+    toreturn <- list(
+      ovi_m = runif(1,p$ovi_m[1],p$ovi_m[2]),
+      ovi_sd = runif(1,p$ovi_sd[1],p$ovi_sd[2]),
+      ecl_m = runif(1,p$ecl_m[1],p$ecl_m[2]),
+      ecl_sd = runif(1,p$ecl_sd[1],p$ecl_sd[2]),
+      hardening = round(runif(1,p$hardening[1],p$hardening[2])),
+      start_quest = runif(1,p$start_quest[1],p$start_quest[2]),
+      max_quest = runif(1,p$max_quest[1],p$max_quest[2]),
+      quest_slope2 = runif(1,p$quest_slope2[1],p$quest_slope2[2]),
+      host_find = runif(1,p$host_find[1],p$host_find[2]),
+      mort = runif(1,p$mort[1],p$mort[2]),
+      diapause = runif(1,p$diapause[1],p$diapause[2]),
+      overwinter_surv = runif(1,p$overwinter_surv[1],p$overwinter_surv[2])
+    )
+    toreturn
+  }
+  
   # parameters for model
   params <- list(
     ovi_m = 243.2, # in degree days base 6 C Rand et al. 2004
@@ -424,6 +461,7 @@ require(bbmle)
   # outputs fraction of larvae oviposited, ecolosed, questing on each day
   larval_quest <- function(tmean, params)
   {
+    params$quest_slope1 = 1/(params$max_quest - params$start_quest)
     tot_day <- length(tmean)
     dd6 <- cumsum(ifelse(tmean > 6, tmean - 6, 0))
     # fraction of cohort oviposited on each day
@@ -493,61 +531,36 @@ require(bbmle)
 
 # make plot comparing model predictions to smoothed observed larval phenology
 {
-  load(file = 'data/phenology_fits.RData') 
+  load(file = 'data/smoothed_pheno.RData') 
   load(file = 'data/processed_prism.RData')
   
-  fit1 <- fitList$low$larva$fit
-  smooth1 <- twoPeakCurve(1:365)
-  fit1 <- fitList$mid$larva$fit
-  smooth2 <- twoPeakCurve(1:365)
-  fit1 <- fitList$high$larva$fit
-  smooth3 <- twoPeakCurve(1:365)
+  model_pred <- tibble(
+    julian = numeric(),
+    larva_frac = numeric(),
+    elevCat = character(),
+    fitnum = numeric())
   
-  fit_larvae <- tibble(day = rep(1:365,3),
-                       larva = c(smooth1,smooth2,smooth3), 
-                       larva_frac = c(smooth1/sum(smooth1),smooth2/sum(smooth2),smooth3/sum(smooth3)),
-                       elevCat = c(rep('low',365),rep('mid',365),rep('high',365))) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  for (j in 1:100) 
+  {
+    for (which_elev in c('low', 'mid', 'high'))
+    {
+      
+      if (which_elev == 'low') temp_climate <- siteClimate %>% filter(site == 'Foote')
+      if (which_elev == 'mid') temp_climate <- siteClimate %>% filter(site == 'Gorge')
+      if (which_elev == 'high') temp_climate <- siteClimate %>% filter(site == 'Snowbowl')
+      
+      param <- rand_param(params_with_CI) 
+      temp_pred <- tibble(
+        julian = 1:365,
+        larva_frac = larval_quest(temp_climate$tmean[1:365], param)$qst_norm,
+        elevCat = which_elev,
+        fitnum = j )
+      model_pred<- rbind(model_pred,temp_pred)
+    }
+  }
   
-  # paramters for model
-  params <- list(
-    ovi_m = 243.2, # in degree days base 6 C Rand et al. 2004
-    ovi_sd = 63.1, # in degree days base 6 C Rand et al. 2004
-    ecl_m = 428.5, # in degree days base 11 C Rand et al. 2004
-    ecl_sd = 70.8, # in degree days base 11 C Rand et al. 2004
-    hardening = 21, # in days Daniels et al. 1996
-    start_quest = 10, # in C Ogden et al. 2005
-    max_quest = 25, # in C Ogden et al. 2005
-    quest_slope1 = 0.067, # in 1/C Odgen et al. 2005
-    quest_slope2 = -0.067, # in 1/C Odgen et al. 2005
-    host_find = 0.0207, # in 1/day Odgen et al. 2005
-    mort = 0.006, # in 1/day Odgen et al. 2005
-    diapause = 0.25, # Ogden et al. 2018
-    overwinter_surv = 0.44 # Lindsay et al. 1995
-  )
   
-  # foote is the representative low elevaiton site for climate
-  pred_low <- tibble(
-    day = 1:365,
-    larva_frac = larval_quest(siteClimate$Foote$tmean[1:365], params)$qst_norm,
-    elevCat = rep('low',365)    
-  )
-
-  # gorge is the representative mid elevaiton site for climate  
-  pred_mid <- tibble(
-    day = 1:365,
-    larva_frac = larval_quest(siteClimate$Gorge$tmean[1:365], params)$qst_norm,
-    elevCat = rep('mid',365)    
-  )
-
-  # snowbowl is the representative high elevaiton site for climate  
-  pred_high <- tibble(
-    day = 1:365,
-    larva_frac = larval_quest(siteClimate$Snowbowl$tmean[1:365], params)$qst_norm,
-    elevCat = rep('high',365)    
-  )
-  
-  pred_larvae <- rbind(pred_low, pred_mid, pred_high) %>%
+  model_pred <- model_pred %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   labv3 <- tibble(elevCat = c('low','mid','high'),
@@ -557,9 +570,9 @@ require(bbmle)
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   pdf('figures/pheno_v_mod.pdf',width=6.68,height=3)
-    fit_larvae %>%
-      ggplot(aes(day,larva_frac)) +
-      geom_path() +
+    pheno_smooth %>%
+      ggplot(aes(julian,larva_frac, group = fitnum)) +
+      geom_path(alpha = 0.1) +
       facet_wrap(~elevCat) +
       theme_classic() +
       theme(strip.background = element_rect(color='transparent'),
@@ -573,8 +586,8 @@ require(bbmle)
                          breaks =c(121,  182, 244),
                          labels=c('May 1', 'Jul 1','Sep 1')) +
       labs(x='',y='Fraction questing') +
-      geom_text(data=labv3,aes(label=lab),cex=4) +
-      geom_path(data=pred_larvae,lty=2)
+      #geom_text(data=labv3,aes(label=lab),cex=4) +
+      geom_path(data=model_pred,color='red',alpha = 0.1)
   dev.off()
 
 }
@@ -638,8 +651,6 @@ require(bbmle)
     site = rep(mysites[1],365)
   )
   
-  siteClimate[['Snake']] <- siteClimate[['Lourie']]
-  
   for (s in mysites[2:length(mysites)])
   {
     temp_pred <- tibble(
@@ -660,7 +671,7 @@ require(bbmle)
                   lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
-  pdf('figures/pheno_v_mod.pdf',width=6.68,height=3)
+  pdf('figures/pheno_v_mod_bysite.pdf',width=6,height=5)
   fit_larvae %>%
     ggplot(aes(day,larva_frac)) +
     geom_path() +
@@ -683,4 +694,18 @@ require(bbmle)
   
 }
 
+
+
+## cheat somethign quick
+{
+  
+  devmod <- pred_mid %>% mutate(julian = day, fitnum = 1)
+  
+  pred %>%
+    ggplot(aes(julian,larva_frac,group=fitnum)) +
+    geom_path(alpha = 0.1) +
+    geom_path(data = devmod,color='red',lwd=1.5) +
+    xlim(c(120,300))
+  
+}
 
