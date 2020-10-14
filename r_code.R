@@ -420,7 +420,7 @@ require(bbmle)
                   lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
-  pdf('figures/pheno_v_mod.pdf',width=6.68,height=3)
+  pdf('figures/pheno_v_mod_CI.pdf',width=6.68,height=3)
     pheno_smooth %>%
       ggplot(aes(julian,larva_frac, group = fitnum)) +
       geom_path(alpha = 0.1) +
