@@ -260,16 +260,16 @@ require(bbmle)
 {
   
   params_with_CI <- list(
-    ovi_m = c(132.0,330.5),
-    ovi_sd = c(50,70),
+    ovi_m = c(131.8,330.5),
+    ovi_sd = c(57.6,69.8),
     ecl_m = c(363.4,469.2),
-    ecl_sd = c(60,80),
-    hardening = c(15,30),
+    ecl_sd = c(63.2,80.5),
+    hardening = c(14,28),
     quest25 = c(0.49, 1),
     start_quest = c(7.0, 10),
     host_find = c(0.01,0.03),
     mort = c(0.006,0.011),
-    diapause = c(0,0.5),
+    diapause = c(0.25,0.75),
     overwinter_surv = c(0.104,0.44)
   )
   
