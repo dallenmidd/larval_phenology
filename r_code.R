@@ -398,12 +398,8 @@ require(bbmle)
       
       temp_climate <- siteClimate %>%
         filter(elevCat == which_elev) %>%
-        group_by(day) %>%
+        group_by(jday) %>%
         summarise(tmean = mean(tmean))
-      
-      if (which_elev == 'low') temp_climate <- siteClimate %>% filter(site == 'Foote')
-      if (which_elev == 'mid') temp_climate <- siteClimate %>% filter(site == 'Gorge')
-      if (which_elev == 'high') temp_climate <- siteClimate %>% filter(site == 'Snowbowl')
       
       param <- rand_param(params_with_CI) 
       temp_pred <- tibble(
