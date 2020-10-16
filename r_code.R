@@ -151,43 +151,6 @@ require(bbmle)
   
 }
 
-
-# make elevation versus fraction early summer larva plot
-{
-  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,410,1000),c('low','mid','high')))
-  late <- samples %>%
-    filter(julian > 212) %>%
-    group_by(site) %>%
-    summarise(fall_l = mean(larva),
-              elev = unique(elev))
-  early <- samples %>%
-    filter(julian <= 212) %>%
-    group_by(site) %>%
-    summarise(spring_l = mean(larva))
-  
-  larva_comparision <- late %>%
-    inner_join(early,by='site') %>%
-    mutate(early_frac = spring_l/(spring_l+fall_l) )
-  
-  larva_comparision %>%
-    filter(is.finite(early_frac)) %>%
-    lm(early_frac ~ elev, data = .) %>%
-    summary()
-  
-  pdf('figures/elev_l_frac.pdf',width=3.14,height=2.5)
-    larva_comparision %>% 
-      ggplot(aes(elev,early_frac)) +
-      geom_point() +
-      theme_classic() +
-      theme(axis.text = element_text(color='black', size =10),
-            axis.title = element_text(size = 10)) +
-      labs(x = 'Elevation (m)', y = 'Early summer fraction') +
-      stat_smooth(se=F,method='lm',color='black') + 
-      coord_cartesian(xlim=c(120,600))
-  dev.off()
-  
-}
-
 # make phenology plot with fit curves
 {
   load(file = 'data/smoothed_pheno.RData') 
@@ -550,8 +513,6 @@ require(bbmle)
   samples <- read_csv('data/drag_samplingwith2020.csv')
   
   samplesMod <- samples %>%
-  #  mutate(site = ifelse(site == 'BRF2','BRF',site),
-  #         site = ifelse(site %in% c('Lourie','Major'),'Snake',site)) %>%
     filter(!(site %in% c('Snowbowl', 'Crystal'))) %>%
     mutate(elevText = paste(elev, ' m'))    
   
@@ -563,29 +524,113 @@ require(bbmle)
     larva = NA,
     elevText = ''
   )
-  
+  samplesMod <- rbind(samplesMod, newRow)
   tempLevels <- levels(as.factor(samplesMod$elevText))
   samplesMod <- samplesMod %>% rbind(samplesMod,newRow) %>%
     mutate(elevText = factor(elevText,tempLevels[c(2:8,1,9:12)]))
   
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  pdf('figures/l_pheno_bysite.pdf',width=6,height=5)
-    samplesMod %>%
-      ggplot(aes(julian,larva)) +
-      geom_point(cex=0.5) +
-      facet_wrap(~elevText) +
+  # pdf('figures/l_pheno_bysite.pdf',width=6,height=5)
+  #   samplesMod %>%
+  #     ggplot(aes(julian,larva)) +
+  #     geom_point(cex=0.5) +
+  #     facet_wrap(~elevText) +
+  #     stat_smooth(se = F) +
+  #     theme_classic() +
+  #     theme(axis.text = element_text(color='black',size = 10),
+  #           axis.title = element_text(size = 10)) +
+  #     scale_x_continuous(limits = c(106,300),
+  #                        breaks =c(121,  182, 244),
+  #                        labels=c('May 1', 'Jul 1','Sep 1')) +
+  #     coord_cartesian(ylim = c(0,125)) +
+  #     labs(x='',y=ylab)
+  #   dev.off()
+    
+    
+    p1 <- samplesMod %>% 
+      filter(elev < 200) %>%
+      ggplot(aes(julian, larva)) +
+      geom_point(cex = 0.5) +
+      facet_wrap(~elevText, nrow = 1) +
       stat_smooth(se = F) +
+      coord_cartesian(ylim = c(0,125)) +
+      theme_classic() +
+      theme(axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
+            axis.text.x = element_blank()) +
+      labs(x='',y='')
+    
+    p2 <- samplesMod %>% 
+      filter((elev > 200 & elev < 400) | elevText == '') %>%
+      ggplot(aes(julian, larva)) +
+      geom_point(cex = 0.5) +
+      facet_wrap(~elevText, nrow = 1) +
+      stat_smooth(se = F) +
+      coord_cartesian(ylim = c(0,60)) +
+      theme_classic() +
+      theme(axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
+            axis.text.x = element_blank()) +
+      labs(x='',y=ylab)
+    
+    p3 <- samplesMod %>% 
+      filter(elev > 400) %>%
+      ggplot(aes(julian, larva)) +
+      geom_point(cex = 0.5) +
+      facet_wrap(~elevText,  nrow = 1) +
+      stat_smooth(se = F) +
+      coord_cartesian(ylim = c(0,30)) +
       theme_classic() +
       theme(axis.text = element_text(color='black',size = 10),
             axis.title = element_text(size = 10)) +
+      labs(x='',y='') +
       scale_x_continuous(limits = c(106,300),
                          breaks =c(121,  182, 244),
-                         labels=c('May 1', 'Jul 1','Sep 1')) +
-      coord_cartesian(ylim = c(0,125)) +
-      labs(x='',y=ylab)
+                         labels=c('May 1', 'Jul 1','Sep 1'))
+    
+    pdf('figures/l_pheno_bysite.pdf',width=6,height=5)  
+     grid.arrange(p1,p2,p3)
     dev.off()
+     
 }
 
+# make elevation versus fraction early summer larva plot
+{
+  samples <- read_csv('data/drag_samplingwith2020.csv')
+  
+  
+  late <- samples %>%
+    filter(julian > 212) %>%
+    group_by(site) %>%
+    summarise(fall_l = mean(larva),
+              elev = unique(elev))
+  early <- samples %>%
+    filter(julian <= 212) %>%
+    group_by(site) %>%
+    summarise(spring_l = mean(larva))
+  
+  larva_comparision <- late %>%
+    inner_join(early,by='site') %>%
+    mutate(early_frac = spring_l/(spring_l+fall_l) )
+  
+  larva_comparision %>%
+    filter(is.finite(early_frac)) %>%
+    lm(early_frac ~ elev, data = .) %>%
+    summary()
+  
+  pdf('figures/elev_l_frac.pdf',width=3.14,height=2.5)
+  larva_comparision %>% 
+    ggplot(aes(elev,early_frac)) +
+    geom_point() +
+    theme_classic() +
+    theme(axis.text = element_text(color='black', size =10),
+          axis.title = element_text(size = 10)) +
+    labs(x = 'Elevation (m)', y = 'Early summer fraction') +
+    stat_smooth(se=F,method='lm',color='black') + 
+    coord_cartesian(xlim=c(120,600))
+  dev.off()
+  
+}
 
 
