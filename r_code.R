@@ -186,37 +186,6 @@ require(bbmle)
   
 }
 
-# make plot comparing parameters
-{
-  load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
-  # compare parameters
-  paramcomp <- tibble(
-    elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
-    when = rep(c('Early','Late'),3),
-    param = c(fitList$low$peak_e[1],fitList$low$peak_l[1],fitList$mid$peak_e[1],fitList$mid$peak_l[1],fitList$high$peak_e[1],fitList$high$peak_l[1]),
-    upper_param = c(fitList$low$peak_e[3],fitList$low$peak_l[3],fitList$mid$peak_e[3],fitList$mid$peak_l[3],fitList$high$peak_e[3],fitList$high$peak_l[3]),
-    lower_param =c(fitList$low$peak_e[2],fitList$low$peak_l[2],fitList$mid$peak_e[2],fitList$mid$peak_l[2],fitList$high$peak_e[2],fitList$high$peak_l[2]),
-  ) %>% 
-    mutate(elev= factor(elev,levels = c('<200 m','200-400 m','>400 m')))
-  
-  pdf('figures/peak_param_comp.pdf',width=3.14,height=3)
-    ylab <- expression(paste('Peak (larvae per 200 ',m^2,')'))
-    paramcomp %>%
-      ggplot(aes(when,param)) +
-      geom_point() +
-      facet_wrap(~elev) +
-      geom_errorbar(aes(ymin=lower_param,ymax=upper_param), width=0.5) +
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            strip.text = element_text(size = 10)) +
-      labs(x='',y=ylab) +
-      scale_y_log10(breaks=c(1e-2,1e-1,1,1e1,1e2),
-                    labels = c(.001,0.1,1,10,100))    
-  dev.off()
-}
-
 # larval development and quest model
 {
   
@@ -406,6 +375,8 @@ require(bbmle)
 }
 
 
+###### Supplamentary figures
+
 # make plot comparing model predictions to smoothed observed larval phenology by site
 {
   load(file = 'data/phenology_fits_bysite.RData') 
@@ -505,94 +476,6 @@ require(bbmle)
   
 }
 
-
-# fit curves to phenology patterns for each site
-{
-  samples <- read_csv('data/drag_samplingwith2020.csv')
-  
-  samplesMod <- samples %>%
-    filter(!(site %in% c('Snowbowl', 'Crystal'))) %>%
-    mutate(elevText = paste(elev, ' m'))    
-  
-  newRow <- tibble(
-    site = NA,
-    elev = NA,
-    date = NA,
-    julian = NA,
-    larva = NA,
-    elevText = ''
-  )
-  samplesMod <- rbind(samplesMod, newRow)
-  tempLevels <- levels(as.factor(samplesMod$elevText))
-  samplesMod <- samplesMod %>% rbind(samplesMod,newRow) %>%
-    mutate(elevText = factor(elevText,tempLevels[c(2:8,1,9:12)]))
-  
-  
-  ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  # pdf('figures/l_pheno_bysite.pdf',width=6,height=5)
-  #   samplesMod %>%
-  #     ggplot(aes(julian,larva)) +
-  #     geom_point(cex=0.5) +
-  #     facet_wrap(~elevText) +
-  #     stat_smooth(se = F) +
-  #     theme_classic() +
-  #     theme(axis.text = element_text(color='black',size = 10),
-  #           axis.title = element_text(size = 10)) +
-  #     scale_x_continuous(limits = c(106,300),
-  #                        breaks =c(121,  182, 244),
-  #                        labels=c('May 1', 'Jul 1','Sep 1')) +
-  #     coord_cartesian(ylim = c(0,125)) +
-  #     labs(x='',y=ylab)
-  #   dev.off()
-    
-    
-    p1 <- samplesMod %>% 
-      filter(elev < 200) %>%
-      ggplot(aes(julian, larva)) +
-      geom_point(cex = 0.5) +
-      facet_wrap(~elevText, nrow = 1) +
-      stat_smooth(se = F) +
-      coord_cartesian(ylim = c(0,125)) +
-      theme_classic() +
-      theme(axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            axis.text.x = element_blank()) +
-      labs(x='',y='')
-    
-    p2 <- samplesMod %>% 
-      filter((elev > 200 & elev < 400) | elevText == '') %>%
-      ggplot(aes(julian, larva)) +
-      geom_point(cex = 0.5) +
-      facet_wrap(~elevText, nrow = 1) +
-      stat_smooth(se = F) +
-      coord_cartesian(ylim = c(0,60)) +
-      theme_classic() +
-      theme(axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            axis.text.x = element_blank()) +
-      labs(x='',y=ylab)
-    
-    p3 <- samplesMod %>% 
-      filter(elev > 400) %>%
-      ggplot(aes(julian, larva)) +
-      geom_point(cex = 0.5) +
-      facet_wrap(~elevText,  nrow = 1) +
-      stat_smooth(se = F) +
-      coord_cartesian(ylim = c(0,30)) +
-      theme_classic() +
-      theme(axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10)) +
-      labs(x='',y='') +
-      scale_x_continuous(limits = c(106,300),
-                         breaks =c(121,  182, 244),
-                         labels=c('May 1', 'Jul 1','Sep 1'))
-    
-    pdf('figures/l_pheno_bysite.pdf',width=6,height=5)  
-     grid.arrange(p1,p2,p3)
-    dev.off()
-     
-}
-
 # make elevation versus fraction early summer larva plot
 {
   samples <- read_csv('data/drag_samplingwith2020.csv')
@@ -629,6 +512,37 @@ require(bbmle)
       coord_cartesian(xlim=c(120,600), ylim = c(0,1))
   dev.off()
   
+}
+
+# make plot comparing parameters
+{
+  load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
+  # compare parameters
+  paramcomp <- tibble(
+    elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
+    when = rep(c('Early','Late'),3),
+    param = c(fitList$low$peak_e[1],fitList$low$peak_l[1],fitList$mid$peak_e[1],fitList$mid$peak_l[1],fitList$high$peak_e[1],fitList$high$peak_l[1]),
+    upper_param = c(fitList$low$peak_e[3],fitList$low$peak_l[3],fitList$mid$peak_e[3],fitList$mid$peak_l[3],fitList$high$peak_e[3],fitList$high$peak_l[3]),
+    lower_param =c(fitList$low$peak_e[2],fitList$low$peak_l[2],fitList$mid$peak_e[2],fitList$mid$peak_l[2],fitList$high$peak_e[2],fitList$high$peak_l[2]),
+  ) %>% 
+    mutate(elev= factor(elev,levels = c('<200 m','200-400 m','>400 m')))
+  
+  pdf('figures/peak_param_comp.pdf',width=3.14,height=3)
+  ylab <- expression(paste('Peak (larvae per 200 ',m^2,')'))
+  paramcomp %>%
+    ggplot(aes(when,param)) +
+    geom_point() +
+    facet_wrap(~elev) +
+    geom_errorbar(aes(ymin=lower_param,ymax=upper_param), width=0.5) +
+    theme_classic() +
+    theme(strip.background = element_rect(color='transparent'),
+          axis.text = element_text(color='black',size = 10),
+          axis.title = element_text(size = 10),
+          strip.text = element_text(size = 10)) +
+    labs(x='',y=ylab) +
+    scale_y_log10(breaks=c(1e-2,1e-1,1,1e1,1e2),
+                  labels = c(.001,0.1,1,10,100))    
+  dev.off()
 }
 
 
