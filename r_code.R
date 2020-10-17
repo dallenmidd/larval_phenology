@@ -79,8 +79,6 @@ require(bbmle)
   fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list() 
 
   param_of_interest <- c('peak_e', 'tau_e', 'mu_e', 'peak_l', 'tau_l', 'mu_l', 'sigma_l', 'k')
-  julianSt <- 120
-  julianEnd <- 305
   
   paramGuess <- list()
   paramGuess[['low']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
@@ -620,15 +618,15 @@ require(bbmle)
     summary()
   
   pdf('figures/elev_l_frac.pdf',width=3.14,height=2.5)
-  larva_comparision %>% 
-    ggplot(aes(elev,early_frac)) +
-    geom_point() +
-    theme_classic() +
-    theme(axis.text = element_text(color='black', size =10),
-          axis.title = element_text(size = 10)) +
-    labs(x = 'Elevation (m)', y = 'Early summer fraction') +
-    stat_smooth(se=F,method='lm',color='black') + 
-    coord_cartesian(xlim=c(120,600))
+    larva_comparision %>% 
+      ggplot(aes(elev,early_frac)) +
+      geom_point() +
+      theme_classic() +
+      theme(axis.text = element_text(color='black', size =10),
+            axis.title = element_text(size = 10)) +
+      labs(x = 'Elevation (m)', y = 'Early summer fraction') +
+      stat_smooth(se=F,method='lm',color='black') + 
+      coord_cartesian(xlim=c(120,600), ylim = c(0,1))
   dev.off()
   
 }
