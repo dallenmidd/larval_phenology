@@ -341,19 +341,26 @@ require(bbmle)
     }
   }
   
+  pheno_smooth <- pheno_smooth %>%
+    mutate(type = 'observed')
   
   model_pred <- model_pred %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+    mutate(larva  = 0, type = 'modeled') %>%
+    rbind(pheno_smooth) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high'))) %>%
+    arrange(fitnum,type,julian) 
   
   labv3 <- tibble(elevCat = c('low','mid','high'),
-                  day=rep(175,3),
-                  larva_frac=rep(0.035,3),
+                  julian=rep(175,3),
+                  larva_frac=0.04,
+                  fitnum = 1,
+                  type = '',
                   lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   pdf('figures/pheno_v_mod_CI.pdf',width=6.68,height=3)
-    pheno_smooth %>%
-      ggplot(aes(julian,larva_frac, group = fitnum)) +
+  model_pred %>%
+      ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
       geom_path(alpha = 0.1) +
       facet_wrap(~elevCat) +
       theme_classic() +
@@ -361,15 +368,13 @@ require(bbmle)
             strip.text = element_blank(),
             axis.text = element_text(color='black',size = 10),
             axis.title = element_text(size = 10),
-            legend.position = c(0.5,0.5)) +
+            legend.position = 'none') +
+      scale_color_manual(values = c('black','#d7191c', '#2b83ba')) +
       scale_x_continuous(limits = c(100,300),
-                         #                   breaks =c(121, 152, 182, 213, 244, 274),
-                         #                  labels=c('May 1', 'Jun 1', 'Jul 1', 'Aug 1','Sep 1', 'Oct 1')) +
                          breaks =c(121,  182, 244),
                          labels=c('May 1', 'Jul 1','Sep 1')) +
       labs(x='',y='Fraction questing') +
-      #geom_text(data=labv3,aes(label=lab),cex=4) +
-      geom_path(data=model_pred,color='red',alpha = 0.1)
+      geom_text(data=labv3,aes(label=lab),cex=4)
   dev.off()
 
 }
