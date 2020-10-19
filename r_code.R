@@ -192,7 +192,7 @@ require(cowplot)
   params_with_CI <- list(
     ovi_m = c(131.8,330.5),
     ovi_sd = c(57.6,69.8),
-    ecl_m = c(363.4,469.2),
+    ecl_m = c(363.4,635.7),
     ecl_sd = c(63.2,80.5),
     hardening = c(14,28),
     quest25 = c(0.49, 1),
@@ -418,22 +418,6 @@ require(cowplot)
   
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  # pdf('figures/l_pheno_bysite.pdf',width=6,height=5)
-  #   samplesMod %>%
-  #     ggplot(aes(julian,larva)) +
-  #     geom_point(cex=0.5) +
-  #     facet_wrap(~elevText) +
-  #     stat_smooth(se = F) +
-  #     theme_classic() +
-  #     theme(axis.text = element_text(color='black',size = 10),
-  #           axis.title = element_text(size = 10)) +
-  #     scale_x_continuous(limits = c(106,300),
-  #                        breaks =c(121,  182, 244),
-  #                        labels=c('May 1', 'Jul 1','Sep 1')) +
-  #     coord_cartesian(ylim = c(0,125)) +
-  #     labs(x='',y=ylab)
-  #   dev.off()
-  
   
   p1 <- samplesMod %>% 
     filter(elev < 200) %>%
@@ -445,8 +429,12 @@ require(cowplot)
     theme_classic() +
     theme(axis.text = element_text(color='black',size = 10),
           axis.title = element_text(size = 10),
+          plot.margin = unit(c(-0,0,-0.35,0), 'cm'),
           axis.text.x = element_blank()) +
-    labs(x='',y='')
+    labs(x='',y='') +
+    scale_x_continuous(limits = c(106,300),
+                       breaks =c(121,  182, 244),
+                       labels = c('','',''))
   
   p2 <- samplesMod %>% 
     filter((elev > 200 & elev < 400) | elevText == '') %>%
@@ -458,8 +446,12 @@ require(cowplot)
     theme_classic() +
     theme(axis.text = element_text(color='black',size = 10),
           axis.title = element_text(size = 10),
+          plot.margin = unit(c(-0.35,0,-0.35,0), 'cm'),
           axis.text.x = element_blank()) +
-    labs(x='',y=ylab)
+    labs(x='',y=ylab) +
+    scale_x_continuous(limits = c(106,300),
+                       breaks =c(121,  182, 244),
+                       labels = c('','',''))
   
   p3 <- samplesMod %>% 
     filter(elev > 400) %>%
@@ -470,14 +462,25 @@ require(cowplot)
     coord_cartesian(ylim = c(0,30)) +
     theme_classic() +
     theme(axis.text = element_text(color='black',size = 10),
+          plot.margin = unit(c(-0.35,0,0,0), 'cm'),
           axis.title = element_text(size = 10)) +
     labs(x='',y='') +
     scale_x_continuous(limits = c(106,300),
                        breaks =c(121,  182, 244),
                        labels=c('May 1', 'Jul 1','Sep 1'))
   
+  g1 <- ggplotGrob(p1)
+  g2 <- ggplotGrob(p2)
+  g3 <- ggplotGrob(p3)
+  maxWdith <- grid::unit.pmax(g1$widths[2:5],g2$widths[2:5],g3$widths[2:5])
+  g1$widths[2:5] <- as.list(maxWdith)
+  g2$widths[2:5] <- as.list(maxWdith)
+  g3$widths[2:5] <- as.list(maxWdith)
+  
+  
+  
   pdf('figures/l_pheno_bysite.pdf',width=6,height=5)  
-    grid.arrange(p1,p2,p3)
+    plot_grid(g1,g2,g3, ncols = 1)
   dev.off()
   
 }
