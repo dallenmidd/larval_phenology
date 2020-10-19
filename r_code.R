@@ -395,7 +395,7 @@ require(cowplot)
 
 ###### Supplamentary figures
 
-# fit curves to phenology patterns for each site
+# fit curves to phenology patterns for each site -- this is broken!!
 {
   samples <- read_csv('data/drag_samplingwith2020.csv')
   
@@ -478,9 +478,9 @@ require(cowplot)
   g3$widths[2:5] <- as.list(maxWdith)
   
   
-  
+  require(gridExtra)
   pdf('figures/l_pheno_bysite.pdf',width=6,height=5)  
-    plot_grid(g1,g2,g3, ncols = 1)
+    grid.arrange(g1,g2,g3, ncols = 1)
   dev.off()
   
 }
