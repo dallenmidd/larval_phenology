@@ -6,8 +6,9 @@ require(tidyverse)
 require(bbmle)
 require(cowplot)
 
-# required phenology functions
+# Define functions for the two-peak phenology curve
 {
+  # this one takes in parameters and data and outputs the negative log likelihood of observing those data with provided parameters
   twoPeak <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
   {
     if (peak_e > 0 & tau_e > 70 & tau_e < 200 & mu_e > 0 & mu_e < 75 & peak_l > 0 & tau_l > tau_e + mu_e & tau_l < 275 & mu_l > 0 & sigma_l > 0.1 & sigma_l < 1.5)
@@ -21,6 +22,7 @@ require(cowplot)
     return(nll )
   }
   
+  # this curve takes in the day and paramters and gives the number of larvae 
   twoPeakCurve <- function(x,
                            peak_e = coef(fit1)['peak_e'], 
                            tau_e = coef(fit1)['tau_e'], 
@@ -33,6 +35,7 @@ require(cowplot)
     peak_e * exp(-0.5* ((x-tau_e)/mu_e)^2 ) + ifelse(x<=tau_l,0, peak_l * exp(-0.5 * (log((x-tau_l)/mu_l)/sigma_l)^2 ))
   }
   
+  # This function is used to find confidence intervals around fit parameters
   paramRangeTwoPeak<- function(fit, param, dataList = dataList)
   {
     paramNames <- names(coef(fit))
@@ -73,7 +76,11 @@ require(cowplot)
   
 }
 
-# fit curves to phenology patterns for three elevation classes
+# This code fits the two-peak phenology curves to data from each elevation category
+# Also gets confidence intervals around each parameter
+# Takes in data/drag_sampling.csv
+# Ouputs data/phenology_fits.RData, 
+# this is already included if you don't want to run all this
 {
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   fitList<-list()
@@ -106,7 +113,11 @@ require(cowplot)
  save(fitList,file = 'data/phenology_fits.RData')
 }
 
-# get range of phenology fits
+# This code generates 250 phenology fit curves for each elev. cat.
+# Uses CIs of fit parameters to do that
+# This is to visualize uncertainty in the fits
+# Takes in data/phenology_fits.RData and data/drag_sampling.csv
+# Outputs data/lotsoffits.RData (also included if you don't want to run this)
 {
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   load(file = 'data/phenology_fits.RData')
@@ -145,13 +156,15 @@ require(cowplot)
     }
   }
   pheno_smooth <- pred  %>% mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  save(pheno_smooth, file = 'data/smoothed_pheno.RData')
+  save(pheno_smooth, file = 'data/lotsoffits.RData')
   
 }
 
-# make phenology plot with fit curves
+# Make the Figure 2A, the plot showing sampling data and fit curves
+# Takes in data/lotsoffits.RData and data/drag_sampling.csv
+# Figure 2A is not plotted but generated as fit_pheno_plot
 {
-  load(file = 'data/smoothed_pheno.RData') 
+  load(file = 'data/lotsoffits.RData') 
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
     mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')),
            fitnum = 1)
@@ -186,23 +199,24 @@ require(cowplot)
   
 }
 
-# larval development and quest model
+# Larval questing phenology model and parameters
 {
-  
+  # Paramters for model, See table 1
   params_with_CI <- list(
     ovi_m = c(131.8,330.5),
     ovi_sd = c(57.6,69.8),
     ecl_m = c(363.4,635.7),
     ecl_sd = c(63.2,80.5),
     hardening = c(14,28),
-    quest25 = c(0.49, 1),
     start_quest = c(7.0, 13),
+    max_quest = c(20, 30),
     host_find = c(0.0069,0.0621),
     mort = c(0.006,0.011),
     diapause = c(0.25,0.75),
     overwinter_surv = c(0.1,0.8)
   )
   
+  # Function to uniformly generate parameters
   rand_param <- function(p)
   {
     toreturn <- list(
@@ -211,7 +225,7 @@ require(cowplot)
       ecl_m = runif(1,p$ecl_m[1],p$ecl_m[2]),
       ecl_sd = runif(1,p$ecl_sd[1],p$ecl_sd[2]),
       hardening = round(runif(1,p$hardening[1],p$hardening[2])),
-      quest25 = runif(1,p$quest25[1],p$quest25[2]),
+      max_quest = runif(1,p$max_quest[1],p$max_quest[2]),
       start_quest = runif(1,p$start_quest[1],p$start_quest[2]),
       host_find = runif(1,p$host_find[1],p$host_find[2]),
       mort = runif(1,p$mort[1],p$mort[2]),
@@ -221,29 +235,15 @@ require(cowplot)
     toreturn
   }
   
-  # parameters for model
-  params <- list(
-    ovi_m = 243.2, # in degree days base 6 C Rand et al. 2004
-    ovi_sd = 63.1, # in degree days base 6 C Rand et al. 2004
-    ecl_m = 428.5, # in degree days base 11 C Rand et al. 2004
-    ecl_sd = 70.8, # in degree days base 11 C Rand et al. 2004
-    hardening = 21, # in days Daniels et al. 1996
-    quest25 = 1, # in C Ogden et al. 2005
-    start_quest = 10, # in C Ogden et al. 2005
-    host_find = 0.0207, # in 1/day Odgen et al. 2005
-    mort = 0.006, # in 1/day Odgen et al. 2005
-    diapause = 0.25, # Ogden et al. 2018
-    overwinter_surv = 0.44 # Lindsay et al. 1995
-  )
-  
   # takes in daily average temp at leaf litter and parameters
   # outputs fraction of larvae oviposited, ecolosed, questing on each day
+  # See figure 1 for flow diagram
   larval_quest <- function(tmean, params)
   {
     tot_day <- length(tmean)
     dd6 <- cumsum(ifelse(tmean > 6, tmean - 6, 0))
     # fraction of cohort oviposited on each day
-    ovi = pnorm(dd6, params$ovi_m, params$ovi_sd) - pnorm(lag(dd6, n = 1, default = 0), params$ovi_m, params$ovi_sd)             
+    ovi <- pnorm(dd6, params$ovi_m, params$ovi_sd) - pnorm(lag(dd6, n = 1, default = 0), params$ovi_m, params$ovi_sd)             
     
     # fraction of cohort eclosed on each day
     ecl <- rep(0, tot_day)
@@ -272,10 +272,10 @@ require(cowplot)
     active <- 0 # tracks number of active ticks
     
     # fraction of ticks active on a given day that will quest based on temp
-    quest_slope <- params$quest25/(25-params$start_quest)
-    f_quest <- ifelse(tmean < 25, 
-                      quest_slope*(tmean-25) + params$quest25,
-                      -quest_slope*(tmean-25) + params$quest25 )
+    quest_slope <- 1/(params$max_quest-params$start_quest)
+    f_quest <- ifelse(tmean < params$max_quest, 
+                      quest_slope*(tmean-params$start_quest),
+                      -quest_slope*(tmean-params$max_quest) + 1 )
     f_quest <- ifelse(f_quest>1,1,ifelse(f_quest<0,0,f_quest))
     
     for (i in 1:days_to_winter)
