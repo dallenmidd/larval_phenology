@@ -1,12 +1,14 @@
-## David Allen
-## Code for larval tick phenology manuscript
-## April 2020
+# Analysis Code for 
+# "A mechanistic model explains variation in larval tick questing phenology along an elevation gradient"
+# Submitted Oct 2020
 
 require(tidyverse)
 require(bbmle)
 require(cowplot)
 
 # Define functions for the two-peak phenology curve
+# doesn't do anything on its own but these functions 
+# are necessary for the next two sections to run
 {
   # this one takes in parameters and data and outputs the negative log likelihood of observing those data with provided parameters
   twoPeak <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
@@ -78,8 +80,8 @@ require(cowplot)
 
 # This code fits the two-peak phenology curves to data from each elevation category
 # Also gets confidence intervals around each parameter
-# Takes in data/drag_sampling.csv
-# Ouputs data/phenology_fits.RData, 
+# Input: data/drag_sampling.csv
+# Output: data/phenology_fits.RData, 
 # this is already included if you don't want to run all this
 {
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
@@ -116,8 +118,8 @@ require(cowplot)
 # This code generates 250 phenology fit curves for each elev. cat.
 # Uses CIs of fit parameters to do that
 # This is to visualize uncertainty in the fits
-# Takes in data/phenology_fits.RData and data/drag_sampling.csv
-# Outputs data/lotsoffits.RData (also included if you don't want to run this)
+# Inputs: data/phenology_fits.RData and data/drag_sampling.csv
+# Output: data/lotsoffits.RData (also included if you don't want to run this)
 {
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   load(file = 'data/phenology_fits.RData')
@@ -160,9 +162,10 @@ require(cowplot)
   
 }
 
-# Make the Figure 2A, the plot showing sampling data and fit curves
-# Takes in data/lotsoffits.RData and data/drag_sampling.csv
+# Make Figure 2A, the plot showing sampling data and fit curves
+# Inputs: data/lotsoffits.RData and data/drag_sampling.csv
 # Figure 2A is not plotted but generated as fit_pheno_plot
+# this is used below to make the full Figure 2
 {
   load(file = 'data/lotsoffits.RData') 
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
@@ -177,7 +180,6 @@ require(cowplot)
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
- # pdf('figures/l_pheno_fit_CI.pdf',width=6.68,height=3)
  fit_pheno_plot <- samples %>%
       ggplot(aes(julian,larva,group = fitnum)) +
       geom_point(cex=0.25) +
@@ -195,11 +197,12 @@ require(cowplot)
       scale_y_continuous(limits = c(0,200)) +
       labs(x='',y=ylab) +
       geom_text(data=labv2,aes(label=lab),size=4) 
- # dev.off()
-  
+
 }
 
 # Larval questing phenology model and parameters
+# doesn't do anything on its own, 
+# but defines required functions for the next section
 {
   # Paramters for model, See table 1
   params_with_CI <- list(
@@ -308,9 +311,12 @@ require(cowplot)
   }
 }
 
-# make plot comparing model predictions to smoothed observed larval phenology
+# Makes Figure 2B, the plot showing fit curves versus model predictions
+# Inputs: data/lotsoffits.RData and data/processed_prism.RData
+# Figure 2B is not plotted but generated as mod_v_obs_plot
+# this is used below to make the full Figure 2
 {
-  load(file = 'data/smoothed_pheno.RData') 
+  load(file = 'data/lotsoffits.RData') 
   load(file = 'data/processed_prism.RData')
   
   model_pred <- tibble(
@@ -364,7 +370,6 @@ require(cowplot)
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   
-  # pdf('figures/pheno_v_mod_CI.pdf',width=6.68,height=3)
   mod_v_obs_plot <- model_pred %>%
       ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
       geom_path(alpha = 0.04) +
@@ -383,10 +388,10 @@ require(cowplot)
                          labels=c('May 1', 'Jul 1','Sep 1')) +
       labs(x='',y='Fraction questing')
       
- # dev.off()
 }
 
-## Make results figure
+# Makes Figure 2
+# Inputs: mod_v_obs_plot and fit_pheno_plot
 { 
  
   pdf('figures/results_fig.pdf',width=7,height=6)
@@ -401,14 +406,17 @@ require(cowplot)
 
 ###### Supplamentary figures
 
-# fit curves to phenology patterns for each site -- this is broken!!
+# Makes Figure A1, which shows sampling resutls by site
+# Input: data/drag_sampling.csv
 {
   samples <- read_csv('data/drag_samplingwith2020.csv')
   
+  # filter out the two sites which never had any larval ticks
   samplesMod <- samples %>%
     filter(!(site %in% c('Snowbowl', 'Crystal'))) %>%
     mutate(elevText = paste(elev, ' m'))    
   
+  # dummy data so plot looks nice
   newRow <- tibble(
     site = NA,
     elev = NA,
@@ -417,6 +425,7 @@ require(cowplot)
     larva = NA,
     elevText = ''
   )
+  
   samplesMod <- rbind(samplesMod, newRow)
   tempLevels <- levels(as.factor(samplesMod$elevText))
   samplesMod <- samplesMod %>% rbind(samplesMod,newRow) %>%
@@ -483,7 +492,9 @@ require(cowplot)
   
 }
 
-# make elevation versus fraction early summer larva plot
+# Makes Figure A2, relationship between fraction of larvae
+# found in early summer versus elevation
+# Input: data/drag_sampling.csv
 {
   samples <- read_csv('data/drag_samplingwith2020.csv')
   
@@ -521,9 +532,13 @@ require(cowplot)
   
 }
 
-# make plot comparing parameters
+# Makes Figure A3, compares fit parameters with CI
+# for the three elevation categories
+# Parameters compared are the heights 
+# of the early- and late-summer questing peaks
+# Input: data/phenology_fits.RData
 {
-  load(file = 'data/phenology_fits.RData') # see above for code which fit these functions
+  load(file = 'data/phenology_fits.RData') 
   # compare parameters
   paramcomp <- tibble(
     elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
