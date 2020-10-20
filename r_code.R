@@ -115,7 +115,7 @@ require(cowplot)
   {
     subSetData <- samples %>% filter(elevCat == which_elev)
     j<-0
-    while (j <100)
+    while (j <250)
     {
       peak_e <- runif(1,fitList[[which_elev]]$peak_e[2],fitList[[which_elev]]$peak_e[3])
       tau_e <- runif(1,fitList[[which_elev]]$tau_e[2],fitList[[which_elev]]$tau_e[3])
@@ -173,9 +173,9 @@ require(cowplot)
       theme(strip.background = element_rect(color='transparent'),
             strip.text = element_blank(),
             axis.text = element_text(color='black',size = 10),
-            plot.margin = unit(c(-0,0,-0.35,0), 'cm'),
+            plot.margin = unit(c(0,0,-0.35,0), 'cm'),
             axis.title = element_text(size = 10)) +
-      geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.05) +
+      geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.04) +
       scale_x_continuous(limits = c(100,300),
                          breaks =c(121,  182, 244),
                          labels=c('', '','')) +
@@ -196,11 +196,11 @@ require(cowplot)
     ecl_sd = c(63.2,80.5),
     hardening = c(14,28),
     quest25 = c(0.49, 1),
-    start_quest = c(7.0, 10),
-    host_find = c(0.01,0.03),
+    start_quest = c(7.0, 13),
+    host_find = c(0.0069,0.0621),
     mort = c(0.006,0.011),
     diapause = c(0.25,0.75),
-    overwinter_surv = c(0.104,0.44)
+    overwinter_surv = c(0.1,0.8)
   )
   
   rand_param <- function(p)
@@ -228,10 +228,8 @@ require(cowplot)
     ecl_m = 428.5, # in degree days base 11 C Rand et al. 2004
     ecl_sd = 70.8, # in degree days base 11 C Rand et al. 2004
     hardening = 21, # in days Daniels et al. 1996
+    quest25 = 1, # in C Ogden et al. 2005
     start_quest = 10, # in C Ogden et al. 2005
-    max_quest = 25, # in C Ogden et al. 2005
-    quest_slope1 = 0.067, # in 1/C Odgen et al. 2005
-    quest_slope2 = -0.067, # in 1/C Odgen et al. 2005
     host_find = 0.0207, # in 1/day Odgen et al. 2005
     mort = 0.006, # in 1/day Odgen et al. 2005
     diapause = 0.25, # Ogden et al. 2018
@@ -321,7 +319,7 @@ require(cowplot)
     elevCat = character(),
     fitnum = numeric())
   
-  for (j in 1:100) 
+  for (j in 1:250) 
   {
     for (which_elev in c('low', 'mid', 'high'))
     {
@@ -332,6 +330,7 @@ require(cowplot)
         summarise(tmean = mean(tmean))
       
       param <- rand_param(params_with_CI) 
+      #param <- params
       temp_pred <- tibble(
         julian = 1:365,
         larva_frac = larval_quest(temp_climate$tmean[1:365], param)$qst_norm,
@@ -350,6 +349,12 @@ require(cowplot)
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high'))) %>%
     arrange(fitnum,type,julian) 
   
+  model_median <- model_pred %>%
+    group_by(julian, elevCat, type) %>%
+    summarise(larva_frac = median(larva_frac)) %>%
+    mutate(larva = 0, fitnum = 1) %>%
+    arrange(type,julian)
+  
   labv3 <- tibble(elevCat = c('low','mid','high'),
                   julian=rep(175,3),
                   larva_frac=0.04,
@@ -362,7 +367,8 @@ require(cowplot)
   # pdf('figures/pheno_v_mod_CI.pdf',width=6.68,height=3)
   mod_v_obs_plot <- model_pred %>%
       ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
-      geom_path(alpha = 0.1) +
+      geom_path(alpha = 0.04) +
+      geom_path(data = model_median) +
       facet_wrap(~elevCat) +
       theme_classic() +
       theme(strip.background = element_rect(color='transparent'),
@@ -382,13 +388,13 @@ require(cowplot)
 
 ## Make results figure
 { 
-  gA <- ggplotGrob(fit_pheno_plot)
-  gB <- ggplotGrob(mod_v_obs_plot)
-  maxWdith <- grid::unit.pmax(gA$widths[2:5],gB$widths[2:5])
-  gA$widths[2:5] <- as.list(maxWdith)
-  gB$widths[2:5] <- as.list(maxWdith)
+ 
   pdf('figures/results_fig.pdf',width=7,height=6)
-    plot_grid(gA,gB,ncol = 1, labels = c('A', 'B'))
+    plot_grid(fit_pheno_plot, 
+              mod_v_obs_plot,
+              ncol = 1, 
+              labels = c('A', 'B'), 
+              align = 'v')
   dev.off()
   }
 
@@ -429,7 +435,7 @@ require(cowplot)
     theme_classic() +
     theme(axis.text = element_text(color='black',size = 10),
           axis.title = element_text(size = 10),
-          plot.margin = unit(c(-0,0,-0.35,0), 'cm'),
+          plot.margin = unit(c(0,0,-0.15,0), 'cm'),
           axis.text.x = element_blank()) +
     labs(x='',y='') +
     scale_x_continuous(limits = c(106,300),
@@ -446,7 +452,7 @@ require(cowplot)
     theme_classic() +
     theme(axis.text = element_text(color='black',size = 10),
           axis.title = element_text(size = 10),
-          plot.margin = unit(c(-0.35,0,-0.35,0), 'cm'),
+          plot.margin = unit(c(-0.15,0,-0.15,0), 'cm'),
           axis.text.x = element_blank()) +
     labs(x='',y=ylab) +
     scale_x_continuous(limits = c(106,300),
@@ -462,25 +468,17 @@ require(cowplot)
     coord_cartesian(ylim = c(0,30)) +
     theme_classic() +
     theme(axis.text = element_text(color='black',size = 10),
-          plot.margin = unit(c(-0.35,0,0,0), 'cm'),
+          plot.margin = unit(c(-0.15,0,0,0), 'cm'),
           axis.title = element_text(size = 10)) +
     labs(x='',y='') +
     scale_x_continuous(limits = c(106,300),
                        breaks =c(121,  182, 244),
                        labels=c('May 1', 'Jul 1','Sep 1'))
   
-  g1 <- ggplotGrob(p1)
-  g2 <- ggplotGrob(p2)
-  g3 <- ggplotGrob(p3)
-  maxWdith <- grid::unit.pmax(g1$widths[2:5],g2$widths[2:5],g3$widths[2:5])
-  g1$widths[2:5] <- as.list(maxWdith)
-  g2$widths[2:5] <- as.list(maxWdith)
-  g3$widths[2:5] <- as.list(maxWdith)
+
   
-  
-  require(gridExtra)
   pdf('figures/l_pheno_bysite.pdf',width=6,height=5)  
-    grid.arrange(g1,g2,g3, ncols = 1)
+    plot_grid(p1,p2,p3, align = 'v', ncol = 1)
   dev.off()
   
 }
