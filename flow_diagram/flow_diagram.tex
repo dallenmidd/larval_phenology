@@ -9,8 +9,7 @@
 \tikzset{
 	mynode/.style={draw=none,text centered,text width = 6em},
 	myarrow1/.style={->,>=latex,shorten >=1pt, very thick},
-	myarrow2/.style={->,>=latex,shorten >=1pt,very thin},
-	myarrow3/.style={->,>=latex,shorten >=1pt,thick}
+	myarrow2/.style={->,>=latex,shorten >=1pt,very thin}
 }
 
 
@@ -23,27 +22,27 @@
 
 	\begin{tikzpicture}[node distance=0.5cm,auto]
 		\node[mynode](gravid){Gravid female};
-		\node[below = 0.5 cm of gravid,mynode](egg){Oviposition};
+		\node[below = 0.5 cm of gravid,mynode](egg){Egg};
 		\draw[myarrow1] (gravid) -- (egg);
-		\node[below = 0.5 cm of egg,mynode](ecolsion){Ecolosion};
-		\draw[myarrow1] (egg) -- (ecolsion);
-		\node[below = 0.5 cm of ecolsion,mynode](hardening){Hardening};
-		\draw[myarrow2] (ecolsion) -- (hardening);
-		\node[below = 0.5 cm of hardening,mynode](active){Active};
+		\node[below = 0.5 cm of egg,mynode](hatched){Eclosed larva};
+		\draw[myarrow1] (egg) -- (hatched);
+		\node[below = 0.5 cm of hatched,mynode](hardening){Hardening larva};
+		\draw[myarrow2] (hatched) -- (hardening);
+		\node[below = 0.5 cm of hardening,mynode](active){Active larva};
 		\draw[myarrow2] (hardening) -- (active);
-		\node[below right = 0.25 cm of active,mynode](winter){Overwinter};
+		\node[below right = 0.25 cm of active,mynode](winter){Overwintering larva};
 		\draw[myarrow1] (active) edge[bend left = 40] (winter);
 		\draw[myarrow1] (winter) edge[bend left = 40] (active);
-		\node[right = 1.25 cm of winter,mynode](dummy1){};
-		\draw[myarrow2] (winter) -- (dummy1) node[midway, text width = 6em]{Overwinter mortality};
-		\node[below left = 0.25 cm of active,mynode](quest){Questing};
+		\node[right = 1.75 cm of winter,mynode](dummy1){};
+		\draw[myarrow2] (winter) -- (dummy1) node[midway, text width = 6em, xshift = 0.25cm]{Overwinter mortality};
+		\node[below left = 0.25 cm of active,mynode](quest){Questing larva};
 		\draw[myarrow1] (active) edge[bend right = 40] (quest);
 		\draw[myarrow1] (quest) edge[bend right = 40] (active);
 		\node[above left = 0.5 cm of quest,mynode](dummy2){};
 		\draw[myarrow2] (quest) -- (dummy2) node[above = 0.15 cm,midway]{Mortality};
 		\node[below left = 0.5 cm of quest,mynode](dummy3){};
 		\draw[myarrow2] (quest) -- (dummy3) node[below = 0.15 cm,midway]{Find host};
-		\draw[myarrow2, in = 90, out = 0] (ecolsion) to node[midway]{Diapause} (winter);
+		\draw[myarrow2, in = 90, out = 0] (hatched) to node[midway]{Diapause} (winter);
 		\node[below =1cm of active,mynode](dummy3){};
 		\draw[myarrow2] (active) -- (dummy3) node[below]{Mortality};
 
