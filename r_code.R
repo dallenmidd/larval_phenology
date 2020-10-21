@@ -206,10 +206,10 @@ require(cowplot)
 {
   # Paramters for model, See table 1
   params_with_CI <- list(
-    ovi_m = c(132,331),
-    ovi_sd = c(58,70),
-    ecl_m = c(363,469),
-    ecl_sd = c(63,81),
+    ovi_m = c(132,243),
+    ovi_sd = c(37,63),
+    ecl_m = c(429,638),
+    ecl_sd = c(6,71),
     hardening = c(14,28),
     start_quest = c(5, 15),
     max_quest = c(20, 30),
