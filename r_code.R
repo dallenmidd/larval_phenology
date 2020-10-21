@@ -84,7 +84,7 @@ require(cowplot)
 # Output: data/phenology_fits.RData, 
 # this is already included if you don't want to run all this
 {
-  samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   fitList<-list()
   fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list() 
 
@@ -121,7 +121,7 @@ require(cowplot)
 # Inputs: data/phenology_fits.RData and data/drag_sampling.csv
 # Output: data/many_fits.RData (also included if you don't want to run this)
 {
-  samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   load(file = 'data/phenology_fits.RData')
   pred <- tibble(julian = numeric(), larva = numeric(), larva_frac = numeric(),fitnum = numeric(),elevCat= character())
   for (which_elev in c('low', 'mid', 'high'))
@@ -180,7 +180,7 @@ require(cowplot)
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
- fit_pheno_plot <- samples %>%
+  fit_pheno_plot <- samples %>%
       ggplot(aes(julian,larva,group = fitnum)) +
       geom_point(cex=0.25) +
       facet_wrap(~elevCat) +
@@ -206,14 +206,14 @@ require(cowplot)
 {
   # Paramters for model, See table 1
   params_with_CI <- list(
-    ovi_m = c(131.8,330.5),
-    ovi_sd = c(57.6,69.8),
-    ecl_m = c(363.4,635.7),
-    ecl_sd = c(63.2,80.5),
+    ovi_m = c(132,331),
+    ovi_sd = c(58,70),
+    ecl_m = c(363,469),
+    ecl_sd = c(63,81),
     hardening = c(14,28),
-    start_quest = c(7.0, 13),
+    start_quest = c(5, 15),
     max_quest = c(20, 30),
-    host_find = c(0.0069,0.0621),
+    host_find = c(0.005,0.08),
     mort = c(0.006,0.011),
     diapause = c(0.25,0.75),
     overwinter_surv = c(0.1,0.8)
@@ -336,7 +336,6 @@ require(cowplot)
         summarise(tmean = mean(tmean))
       
       param <- rand_param(params_with_CI) 
-      #param <- params
       temp_pred <- tibble(
         julian = 1:365,
         larva_frac = larval_quest(temp_climate$tmean[1:365], param)$qst_norm,
@@ -373,7 +372,7 @@ require(cowplot)
   mod_v_obs_plot <- model_pred %>%
       ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
       geom_path(alpha = 0.04) +
-      geom_path(data = model_median) +
+      geom_path(data = model_median,lwd=0.75) +
       facet_wrap(~elevCat) +
       theme_classic() +
       theme(strip.background = element_rect(color='transparent'),
@@ -409,7 +408,7 @@ require(cowplot)
 # Makes Figure A1, which shows sampling resutls by site
 # Input: data/drag_sampling.csv
 {
-  samples <- read_csv('data/drag_samplingwith2020.csv')
+  samples <- read_csv('data/drag_sampling.csv')
   
   # filter out the two sites which never had any larval ticks
   samplesMod <- samples %>%
@@ -550,20 +549,20 @@ require(cowplot)
     mutate(elev= factor(elev,levels = c('<200 m','200-400 m','>400 m')))
   
   pdf('figures/peak_param_comp.pdf',width=3.14,height=3)
-  ylab <- expression(paste('Peak (larvae per 200 ',m^2,')'))
-  paramcomp %>%
-    ggplot(aes(when,param)) +
-    geom_point() +
-    facet_wrap(~elev) +
-    geom_errorbar(aes(ymin=lower_param,ymax=upper_param), width=0.5) +
-    theme_classic() +
-    theme(strip.background = element_rect(color='transparent'),
-          axis.text = element_text(color='black',size = 10),
-          axis.title = element_text(size = 10),
-          strip.text = element_text(size = 10)) +
-    labs(x='',y=ylab) +
-    scale_y_log10(breaks=c(1e-2,1e-1,1,1e1,1e2),
-                  labels = c(.001,0.1,1,10,100))    
+    ylab <- expression(paste('Peak (larvae per 200 ',m^2,')'))
+    paramcomp %>%
+      ggplot(aes(when,param)) +
+      geom_point() +
+      facet_wrap(~elev) +
+      geom_errorbar(aes(ymin=lower_param,ymax=upper_param), width=0.5) +
+      theme_classic() +
+      theme(strip.background = element_rect(color='transparent'),
+            axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
+            strip.text = element_text(size = 10)) +
+      labs(x='',y=ylab) +
+      scale_y_log10(breaks=c(1e-2,1e-1,1,1e1,1e2),
+                    labels = c(.001,0.1,1,10,100))    
   dev.off()
 }
 
