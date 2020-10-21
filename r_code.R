@@ -191,9 +191,9 @@ require(cowplot)
             plot.margin = unit(c(0,0,-0.35,0), 'cm'),
             axis.title = element_text(size = 10)) +
       geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.04) +
-      scale_x_continuous(limits = c(100,300),
-                         breaks =c(121,  182, 244),
-                         labels=c('', '','')) +
+      scale_x_continuous(limits = c(105,305),
+                         breaks =c(121,  182, 244, 305),
+                         labels=c('', '','', '')) +
       scale_y_continuous(limits = c(0,200)) +
       labs(x='',y=ylab) +
       geom_text(data=labv2,aes(label=lab),size=4) 
@@ -382,9 +382,9 @@ require(cowplot)
             plot.margin = unit(c(-0.35,0,0,0), 'cm'),
             legend.position = 'none') +
       scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-      scale_x_continuous(limits = c(100,300),
-                         breaks =c(121,  182, 244),
-                         labels=c('May 1', 'Jul 1','Sep 1')) +
+      scale_x_continuous(limits = c(105,305),
+                         breaks =c(121,  182, 244, 305),
+                         labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
       labs(x='',y='Fraction questing')
       
 }
@@ -393,7 +393,7 @@ require(cowplot)
 # Inputs: mod_v_obs_plot and fit_pheno_plot
 { 
  
-  pdf('figures/results_fig.pdf',width=7,height=6)
+  pdf('figures/results_fig.pdf',width=7.25,height=6)
     plot_grid(fit_pheno_plot, 
               mod_v_obs_plot,
               ncol = 1, 
