@@ -119,7 +119,7 @@ require(cowplot)
 # Uses CIs of fit parameters to do that
 # This is to visualize uncertainty in the fits
 # Inputs: data/phenology_fits.RData and data/drag_sampling.csv
-# Output: data/lotsoffits.RData (also included if you don't want to run this)
+# Output: data/many_fits.RData (also included if you don't want to run this)
 {
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   load(file = 'data/phenology_fits.RData')
@@ -158,16 +158,16 @@ require(cowplot)
     }
   }
   pheno_smooth <- pred  %>% mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  save(pheno_smooth, file = 'data/lotsoffits.RData')
+  save(pheno_smooth, file = 'data/many_fits.RData')
   
 }
 
 # Make Figure 2A, the plot showing sampling data and fit curves
-# Inputs: data/lotsoffits.RData and data/drag_sampling.csv
+# Inputs: data/many_fits.RData and data/drag_sampling.csv
 # Figure 2A is not plotted but generated as fit_pheno_plot
 # this is used below to make the full Figure 2
 {
-  load(file = 'data/lotsoffits.RData') 
+  load(file = 'data/many_fits.RData') 
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
     mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')),
            fitnum = 1)
@@ -312,11 +312,11 @@ require(cowplot)
 }
 
 # Makes Figure 2B, the plot showing fit curves versus model predictions
-# Inputs: data/lotsoffits.RData and data/processed_prism.RData
+# Inputs: data/many_fits.RData and data/processed_prism.RData
 # Figure 2B is not plotted but generated as mod_v_obs_plot
 # this is used below to make the full Figure 2
 {
-  load(file = 'data/lotsoffits.RData') 
+  load(file = 'data/many_fits.RData') 
   load(file = 'data/processed_prism.RData')
   
   model_pred <- tibble(
