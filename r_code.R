@@ -5,7 +5,7 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
-set.seed(2718)
+set.seed(140635)
 
 # Define functions for the two-peak phenology curve
 # doesn't do anything on its own but these functions 
@@ -514,7 +514,7 @@ set.seed(2718)
       theme_classic() +
       theme(axis.text = element_text(color='black', size =10),
             axis.title = element_text(size = 10)) +
-      labs(x = 'Elevation (m)', y = 'Early summer fraction') +
+      labs(x = 'Elevation (m)', y = 'Early-summer fraction') +
       stat_smooth(se=F,method='lm',color='black') + 
       coord_cartesian(xlim=c(120,600), ylim = c(0,1))
   dev.off()
