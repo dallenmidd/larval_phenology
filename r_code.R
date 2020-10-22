@@ -5,6 +5,7 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
+set.seed(2718)
 
 # Define functions for the two-peak phenology curve
 # doesn't do anything on its own but these functions 
@@ -81,7 +82,7 @@ require(cowplot)
 # This code fits the two-peak phenology curves to data from each elevation category
 # Also gets confidence intervals around each parameter
 # Input: data/drag_sampling.csv
-# Output: data/phenology_fits.RData, 
+# Output: results/phenology_fits.RData, 
 # this is already included if you don't want to run all this
 {
   samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
@@ -112,17 +113,17 @@ require(cowplot)
       }  
     }
   }
- save(fitList,file = 'data/phenology_fits.RData')
+ save(fitList,file = 'results/phenology_fits.RData')
 }
 
 # This code generates 250 phenology fit curves for each elev. cat.
 # Uses CIs of fit parameters to do that
 # This is to visualize uncertainty in the fits
-# Inputs: data/phenology_fits.RData and data/drag_sampling.csv
-# Output: data/many_fits.RData (also included if you don't want to run this)
+# Inputs: results/phenology_fits.RData and data/drag_sampling.csv
+# Output: results/many_fits.RData (also included if you don't want to run this)
 {
   samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
-  load(file = 'data/phenology_fits.RData')
+  load(file = 'results/phenology_fits.RData')
   pred <- tibble(julian = numeric(), larva = numeric(), larva_frac = numeric(),fitnum = numeric(),elevCat= character())
   for (which_elev in c('low', 'mid', 'high'))
   {
@@ -158,46 +159,7 @@ require(cowplot)
     }
   }
   pheno_smooth <- pred  %>% mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  save(pheno_smooth, file = 'data/many_fits.RData')
-  
-}
-
-# Make Figure 2A, the plot showing sampling data and fit curves
-# Inputs: data/many_fits.RData and data/drag_sampling.csv
-# Figure 2A is not plotted but generated as fit_pheno_plot
-# this is used below to make the full Figure 2
-{
-  load(file = 'data/many_fits.RData') 
-  samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
-    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')),
-           fitnum = 1)
-   
-  labv2 <- tibble(elevCat = c('low','mid','high'),
-                  julian=rep(212,3),
-                  larva=rep(200,3),
-                  lab = c('<200 m', '200 - 400 m', '>400 m'),
-                  fitnum = 1) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  
-  ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  fit_pheno_plot <- samples %>%
-      ggplot(aes(julian,larva,group = fitnum)) +
-      geom_point(cex=0.25) +
-      facet_wrap(~elevCat) +
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            strip.text = element_blank(),
-            axis.text = element_text(color='black',size = 10),
-            plot.margin = unit(c(0,0,-0.35,0), 'cm'),
-            axis.title = element_text(size = 10)) +
-      geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.04) +
-      scale_x_continuous(limits = c(105,305),
-                         breaks =c(121,  182, 244, 305),
-                         labels=c('', '','', '')) +
-      scale_y_continuous(limits = c(0,200)) +
-      labs(x='',y=ylab) +
-      geom_text(data=labv2,aes(label=lab),size=4) 
-
+  save(pheno_smooth, file = 'results/many_fits.RData')
 }
 
 # Larval questing phenology model and parameters
@@ -210,12 +172,12 @@ require(cowplot)
     ovi_sd = c(37,63),
     ecl_m = c(429,638),
     ecl_sd = c(6,71),
+    diapause = c(0.25,0.75),
     hardening = c(14,28),
     start_quest = c(5, 15),
     max_quest = c(20, 30),
-    host_find = c(0.005,0.08),
-    mort = c(0.006,0.011),
-    diapause = c(0.25,0.75),
+    host_find = c(0.004,0.1),
+    mort = c(0.007,0.014),
     overwinter_surv = c(0.1,0.8)
   )
   
@@ -227,12 +189,12 @@ require(cowplot)
       ovi_sd = runif(1,p$ovi_sd[1],p$ovi_sd[2]),
       ecl_m = runif(1,p$ecl_m[1],p$ecl_m[2]),
       ecl_sd = runif(1,p$ecl_sd[1],p$ecl_sd[2]),
+      diapause = runif(1,p$diapause[1],p$diapause[2]),
       hardening = round(runif(1,p$hardening[1],p$hardening[2])),
       max_quest = runif(1,p$max_quest[1],p$max_quest[2]),
       start_quest = runif(1,p$start_quest[1],p$start_quest[2]),
       host_find = runif(1,p$host_find[1],p$host_find[2]),
       mort = runif(1,p$mort[1],p$mort[2]),
-      diapause = runif(1,p$diapause[1],p$diapause[2]),
       overwinter_surv = runif(1,p$overwinter_surv[1],p$overwinter_surv[2])
     )
     toreturn
@@ -311,13 +273,12 @@ require(cowplot)
   }
 }
 
-# Makes Figure 2B, the plot showing fit curves versus model predictions
-# Inputs: data/many_fits.RData and data/processed_prism.RData
-# Figure 2B is not plotted but generated as mod_v_obs_plot
-# this is used below to make the full Figure 2
+# This code generates 250 runs of the phenology model for each
+# elevation category. It requires the code block above
+# Input: data/processed_prism.RData
+# Output: result/many_model_runs.RData
 {
-  load(file = 'data/many_fits.RData') 
-  load(file = 'data/processed_prism.RData')
+  siteClimate <- read_csv(file = 'data/processed_prism.csv')
   
   model_pred <- tibble(
     julian = numeric(),
@@ -345,54 +306,84 @@ require(cowplot)
     }
   }
   
+  save(model_pred, file = 'results/many_model_runs.RData')
+}
+
+# Make Figure 2, the main result 
+# Fig 2A shows phenology curves fit to data
+# Fig 2B shows those fit curves compared to model predictions
+# Inputs: data/drag_sampling.csv, results/many_fits.RData, results/many_model_runs.RData
+# Output: Figure 2 (main_result.pdf)
+{
+  load(file = 'results/many_fits.RData') 
+  samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
+    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')),
+           fitnum = 1)
+  
+  label_2A <- tibble(elevCat = c('low','mid','high'),
+                  julian=rep(212,3),
+                  larva=rep(200,3),
+                  lab = c('<200 m', '200 - 400 m', '>400 m'),
+                  fitnum = 1) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  
+  ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
+  # this is Figure 2A
+  fit_pheno_plot <- samples %>%
+    ggplot(aes(julian,larva,group = fitnum)) +
+    geom_point(cex=0.25) +
+    facet_wrap(~elevCat) +
+    theme_classic() +
+    theme(strip.background = element_rect(color='transparent'),
+          strip.text = element_blank(),
+          axis.text = element_text(color='black',size = 10),
+          plot.margin = unit(c(0,0,-0.35,0), 'cm'),
+          axis.title = element_text(size = 10)) +
+    geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.04) +
+    scale_x_continuous(limits = c(105,305),
+                       breaks =c(121,  182, 244, 305),
+                       labels=c('', '','', '')) +
+    scale_y_continuous(limits = c(0,200)) +
+    labs(x='',y=ylab) +
+    geom_text(data=label_2A,aes(label=lab),size=4) 
+  
+  load(file = 'results/many_model_runs.RData') 
+  
   pheno_smooth <- pheno_smooth %>%
     mutate(type = 'observed')
   
   model_pred <- model_pred %>%
-    mutate(larva  = 0, type = 'modeled') %>%
+    mutate(larva  = NA, type = 'modeled') %>%
     rbind(pheno_smooth) %>%
     mutate(elevCat = factor(elevCat,levels=c('low','mid','high'))) %>%
     arrange(fitnum,type,julian) 
   
-  model_median <- model_pred %>%
+  mean_vals <- model_pred %>%
     group_by(julian, elevCat, type) %>%
-    summarise(larva_frac = median(larva_frac)) %>%
-    mutate(larva = 0, fitnum = 1) %>%
+    summarise(larva_frac = mean(larva_frac)) %>%
+    mutate(larva = NA, fitnum = 1) %>%
     arrange(type,julian)
-  
-  labv3 <- tibble(elevCat = c('low','mid','high'),
-                  julian=rep(175,3),
-                  larva_frac=0.04,
-                  fitnum = 1,
-                  type = '',
-                  lab = c('<200 m', '200 - 400 m', '>400 m')) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  
-  
-  mod_v_obs_plot <- model_pred %>%
-      ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
-      geom_path(alpha = 0.04) +
-      geom_path(data = model_median,lwd=0.75) +
-      facet_wrap(~elevCat) +
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            strip.text = element_blank(),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-            legend.position = 'none') +
-      scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-      scale_x_continuous(limits = c(105,305),
-                         breaks =c(121,  182, 244, 305),
-                         labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
-      labs(x='',y='Fraction questing')
-      
-}
 
-# Makes Figure 2
-# Inputs: mod_v_obs_plot and fit_pheno_plot
-{ 
+  # Make Figure 2B
+  mod_v_obs_plot <- model_pred %>%
+    ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
+    geom_path(alpha = 0.04) +
+    geom_path(data = mean_vals,lwd=0.75) +
+    facet_wrap(~elevCat) +
+    theme_classic() +
+    theme(strip.background = element_rect(color='transparent'),
+          strip.text = element_blank(),
+          axis.text = element_text(color='black',size = 10),
+          axis.title = element_text(size = 10),
+          plot.margin = unit(c(-0.35,0,0,0), 'cm'),
+          legend.position = 'none') +
+    scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+    scale_x_continuous(limits = c(105,305),
+                       breaks =c(121,  182, 244, 305),
+                       labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
+    labs(x='',y='Fraction questing')
  
+  # Combine subfigures into Figure 2
   pdf('figures/results_fig.pdf',width=7.25,height=6)
     plot_grid(fit_pheno_plot, 
               mod_v_obs_plot,
@@ -400,10 +391,10 @@ require(cowplot)
               labels = c('A', 'B'), 
               align = 'v')
   dev.off()
-  }
+}
 
 
-###### Supplamentary figures
+###### Supplementary figures
 
 # Makes Figure A1, which shows sampling resutls by site
 # Input: data/drag_sampling.csv
@@ -446,7 +437,7 @@ require(cowplot)
           plot.margin = unit(c(0,0,-0.15,0), 'cm'),
           axis.text.x = element_blank()) +
     labs(x='',y='') +
-    scale_x_continuous(limits = c(106,300),
+    scale_x_continuous(limits = c(105,305),
                        breaks =c(121,  182, 244),
                        labels = c('','',''))
   
@@ -463,7 +454,7 @@ require(cowplot)
           plot.margin = unit(c(-0.15,0,-0.15,0), 'cm'),
           axis.text.x = element_blank()) +
     labs(x='',y=ylab) +
-    scale_x_continuous(limits = c(106,300),
+    scale_x_continuous(limits = c(105,305),
                        breaks =c(121,  182, 244),
                        labels = c('','',''))
   
@@ -479,7 +470,7 @@ require(cowplot)
           plot.margin = unit(c(-0.15,0,0,0), 'cm'),
           axis.title = element_text(size = 10)) +
     labs(x='',y='') +
-    scale_x_continuous(limits = c(106,300),
+    scale_x_continuous(limits = c(105,305),
                        breaks =c(121,  182, 244),
                        labels=c('May 1', 'Jul 1','Sep 1'))
   
@@ -496,7 +487,6 @@ require(cowplot)
 # Input: data/drag_sampling.csv
 {
   samples <- read_csv('data/drag_samplingwith2020.csv')
-  
   
   late <- samples %>%
     filter(julian > 212) %>%
@@ -535,9 +525,9 @@ require(cowplot)
 # for the three elevation categories
 # Parameters compared are the heights 
 # of the early- and late-summer questing peaks
-# Input: data/phenology_fits.RData
+# Input: results/phenology_fits.RData
 {
-  load(file = 'data/phenology_fits.RData') 
+  load(file = 'results/phenology_fits.RData') 
   # compare parameters
   paramcomp <- tibble(
     elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
