@@ -101,8 +101,6 @@ set.seed(140635)
     subSetData <- samples %>% filter(elevCat == which_elev)
     dataList <- with(subSetData,list(day = julian, tickNum = larva))
     fit1 <- mle2(twoPeak, start=paramGuess[[which_elev]], data=dataList,method='BFGS')
-    # with(subSetData,plot(julian,larva))
-    # curve(twoPeakCurve,from=julianSt,to=julianEnd,add=TRUE)
     fitList[[which_elev]][['fit']] <- fit1
     for (param in param_of_interest) {
       if(param == 'mu_l' & which_elev == 'high')
