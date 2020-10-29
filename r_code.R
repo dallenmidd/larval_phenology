@@ -5,6 +5,7 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
+require(ggridges)
 set.seed(140635)
 
 # Define functions for the two-peak phenology curve
@@ -390,6 +391,47 @@ set.seed(140635)
               align = 'v')
   dev.off()
 }
+
+
+# Potential new results figure
+{
+  load(file = 'results/many_fits.RData') 
+  load(file = 'results/many_model_runs.RData') 
+  
+  peak_comp_obs <- pheno_smooth %>%
+    mutate(e_or_l = ifelse(julian < 212, 'early','late')) %>%
+    group_by(elevCat, fitnum, e_or_l) %>%
+    summarise(peak = max(larva_frac), when = julian[which.max(larva_frac)]) %>%
+    group_by(elevCat, e_or_l) %>%
+    mutate(type = 'observed')
+  
+  peak_comp_mod <-  model_pred %>%
+    mutate(e_or_l = ifelse(julian < 212, 'early','late')) %>%
+    group_by(elevCat, fitnum, e_or_l) %>%
+    summarise(peak = max(larva_frac), 
+              when = julian[which.max(larva_frac)]) %>%
+    group_by(elevCat, e_or_l) %>%
+    mutate(type = 'modelled')
+  
+  peak_comp <- rbind(peak_comp_mod,peak_comp_obs) %>%
+    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
+  
+  peak_comp %>%
+    ggplot(aes(x = when, color = type, y = e_or_l, fill =type)) +
+    geom_density_ridges(alpha = 0.5) + 
+    scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+    scale_fill_manual(values = c( '#d7191c', '#2b83ba')) +
+    facet_wrap(~elevCat)
+  
+  peak_comp %>%
+    ggplot(aes(x = when, color = type, y = elevCat, fill =type)) +
+    geom_density_ridges(alpha = 0.5) + 
+    facet_wrap(~e_or_l)
+  
+  
+  
+}
+
 
 
 ###### Supplementary figures
