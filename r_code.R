@@ -1,6 +1,6 @@
 # Analysis Code for 
 # "A mechanistic model explains variation in larval tick questing phenology along an elevation gradient"
-# Submitted Oct 2020
+# Submitted Nov 2020
 
 require(tidyverse)
 require(bbmle)
@@ -315,16 +315,14 @@ set.seed(140635)
 # Output: Figure 2 (main_result.pdf)
 {
   load(file = 'results/many_fits.RData') 
+  word_to_num <- c('low' = '<200 m', 'mid' = '200-400 m', 'high' = '>400 m')
+  pheno_smooth <- pheno_smooth %>% 
+    mutate(elevCat = recode(elevCat,!!!word_to_num),
+           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
   samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
-    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')),
+    mutate(elevCat = cut(elev,c(0,200,400,1000),c('<200 m','200-400 m','>400 m')),
+           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')),
            fitnum = 1)
-  
-  label_2A <- tibble(elevCat = c('low','mid','high'),
-                  julian=rep(212,3),
-                  larva=rep(200,3),
-                  lab = c('<200 m', '200 - 400 m', '>400 m'),
-                  fitnum = 1) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
   # this is Figure 2A
@@ -334,7 +332,7 @@ set.seed(140635)
     facet_wrap(~elevCat) +
     theme_classic() +
     theme(strip.background = element_rect(color='transparent'),
-          strip.text = element_blank(),
+          strip.text = element_text(color='black',size = 10),
           axis.text = element_text(color='black',size = 10),
           plot.margin = unit(c(0,0,-0.35,0), 'cm'),
           axis.title = element_text(size = 10)) +
@@ -343,24 +341,26 @@ set.seed(140635)
                        breaks =c(121,  182, 244, 305),
                        labels=c('', '','', '')) +
     scale_y_continuous(limits = c(0,200)) +
-    labs(x='',y=ylab) +
-    geom_text(data=label_2A,aes(label=lab),size=4) 
+    labs(x='',y=ylab) #+
+    #geom_text(data=label_2A,aes(label=lab),size=4) 
   
   load(file = 'results/many_model_runs.RData') 
   
   pheno_smooth <- pheno_smooth %>%
-    mutate(type = 'observed')
-  
+    mutate(type = 'observed') %>%
+    select(-larva)
+
   model_pred <- model_pred %>%
-    mutate(larva  = NA, type = 'modeled') %>%
+    mutate(type = 'modeled') %>%
     rbind(pheno_smooth) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high'))) %>%
+    mutate(elevCat = recode(elevCat,!!!word_to_num),
+           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m'))) %>%
     arrange(fitnum,type,julian) 
   
   mean_vals <- model_pred %>%
     group_by(julian, elevCat, type) %>%
     summarise(larva_frac = mean(larva_frac)) %>%
-    mutate(larva = NA, fitnum = 1) %>%
+    mutate(fitnum = 1) %>%
     arrange(type,julian)
 
   # Make Figure 2B
@@ -398,8 +398,17 @@ set.seed(140635)
   load(file = 'results/many_fits.RData') 
   load(file = 'results/many_model_runs.RData') 
 
-  pheno_smooth <- pheno_smooth %>% mutate(type = 'observed') %>% select(-larva)
-  model_pred <- model_pred %>% mutate(type = 'modelled')
+  word_to_num <- c('low' = '<200 m', 'mid' = '200-400 m', 'high' = '>400 m')
+  
+  pheno_smooth <- pheno_smooth %>% 
+    mutate(type = 'observed',
+           elevCat = recode(elevCat,!!!word_to_num),
+           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m'))) %>% 
+    select(-larva) 
+  model_pred <- model_pred %>% 
+    mutate(type = 'modelled',
+           elevCat = recode(elevCat,!!!word_to_num),
+           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
   
   find_break <- pheno_smooth %>%
     rbind(model_pred) %>%
@@ -417,8 +426,66 @@ set.seed(140635)
     group_by(elevCat, fitnum, e_or_l, type) %>%
     summarise(peak = max(larva_frac), when = julian[which.max(larva_frac)]) %>%
     group_by(elevCat, e_or_l, type) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')),
-           e_or_l = factor(e_or_l,levels=c('late','early'))) 
+    mutate(e_or_l = factor(e_or_l,levels=c('late','early'))) 
+  
+    peak_comp_e <- peak_comp %>% filter(e_or_l == 'early')
+    peak_comp_l <- peak_comp %>% filter(e_or_l == 'late')
+    
+    when_plot <- peak_comp_l %>%
+      ggplot(aes(x = when, color = type, fill = type, group= type, y = ..scaled..)) +
+      geom_density(alpha = 0.5) +
+      geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
+      facet_wrap(~elevCat) +
+      scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+      scale_fill_manual(values = c( '#d7191c', '#2b83ba')) +
+      coord_flip() + 
+      theme_classic() +
+      theme(strip.background = element_rect(color='transparent'),
+            strip.text =  element_text(color='black',size = 10),
+            axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
+            #plot.margin = unit(c(-0.35,0,0,0), 'cm'),
+            legend.position = 'none') +
+      scale_x_continuous(limits = c(105,350),
+                         breaks =c(121,  182, 244, 305),
+                         labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
+      scale_y_continuous(breaks = NULL) +
+      geom_hline(yintercept = 0) +
+      labs(y='',x='Day of peak')
+    
+    peak_plot <- peak_comp_l %>%
+      ggplot(aes(x = peak, color = type, fill = type, group= type, y = ..scaled..)) +
+      geom_density(alpha = 0.5) +
+      geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
+      facet_wrap(~elevCat) +
+      scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+      scale_fill_manual(values = c('#d7191c', '#2b83ba')) +
+      coord_flip() + 
+      theme_classic() +
+      theme(strip.background = element_rect(color='transparent'),
+            strip.text = element_blank(),
+            axis.text = element_text(color='black',size = 10),
+            axis.title = element_text(size = 10),
+            #plot.margin = unit(c(-0.35,0,0,0), 'cm'),
+            legend.position = 'none') +
+      scale_y_continuous(breaks = c(-0.5,0.5), labels = c('Early', 'Late')) +
+      geom_hline(yintercept = 0) +
+      labs(y='',x='Larval fraction at peak')
+    
+    
+    pdf('figures/param_comp_ss.pdf',width=3.5,height=6)
+    plot_grid(when_plot, 
+              peak_plot,
+              ncol = 1, 
+              labels = c('A', 'B'), 
+              align = 'v')
+    dev.off()
+    
+    
+}
+
+# ggridges version
+{
   
   comp1_plot <- peak_comp %>%
     ggplot(aes(y = when, color = type, x = e_or_l, fill =type)) +
@@ -460,72 +527,12 @@ set.seed(140635)
           legend.position = 'none') +
     labs(y='Larva fraction at peak', x = '')
   
-    plot_grid(comp1_plot, 
-              comp2_plot,
+  plot_grid(comp1_plot, 
+            comp2_plot,
             ncol = 1, 
             labels = c('A', 'B'), 
             align = 'v')
-    
-    peak_comp_e <- peak_comp %>% filter(e_or_l == 'early')
-    peak_comp_l <- peak_comp %>% filter(e_or_l == 'late')
-    
-    label_2A <- tibble(elevCat = c('low','mid','high'),
-                       x=375,
-                       y=0,
-                       type = 'label',
-                       lab = c('<200 m', '200 - 400 m', '>400 m'),
-                       fitnum = 1) %>%
-      mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-    
-    when_plot <- peak_comp_l %>%
-      ggplot(aes(x = when, color = type, fill = type, group= type, y = ..scaled..)) +
-      geom_density(alpha = 0.5) +
-      geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
-      facet_wrap(~elevCat) +
-      scale_color_manual(values = c('black', '#d7191c', '#2b83ba')) +
-      scale_fill_manual(values = c('white', '#d7191c', '#2b83ba')) +
-      coord_flip() + 
-      theme_classic() +
-      geom_label(data=label_2A,aes(label=lab,x=x,y=y)) +
-      theme(strip.background = element_rect(color='transparent'),
-            strip.text = element_blank(),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            #plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-            legend.position = 'none') +
-      scale_x_continuous(limits = c(105,375),
-                         breaks =c(121,  182, 244, 305),
-                         labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
-      scale_y_continuous(breaks = NULL) +
-      labs(y='',x='Day of peak')
-    
-    peak_plot <- peak_comp_l %>%
-      ggplot(aes(x = peak, color = type, fill = type, group= type, y = ..scaled..)) +
-      geom_density(alpha = 0.5) +
-      geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
-      facet_wrap(~elevCat) +
-      scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-      scale_fill_manual(values = c('#d7191c', '#2b83ba')) +
-      coord_flip() + 
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            strip.text = element_blank(),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            #plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-            legend.position = 'none') +
-      scale_y_continuous(breaks = c(-0.5,0.5), labels = c('Early', 'Late')) +
-      labs(y='',x='Larval fraction at peak')
-    
-    plot_grid(when_plot, 
-              peak_plot,
-              ncol = 1, 
-              labels = c('A', 'B'), 
-              align = 'v')
-    
 }
-
-
 
 
 
