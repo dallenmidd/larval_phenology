@@ -5,7 +5,6 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
-require(ggridges)
 set.seed(140635)
 
 # Define functions for the two-peak phenology curve
@@ -86,29 +85,32 @@ set.seed(140635)
 # Output: results/phenology_fits.RData, 
 # this is already included if you don't want to run all this
 {
-  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+  samples <- read_csv('data/drag_sampling.csv') %>% 
+    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   fitList<-list()
   fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list() 
 
-  param_of_interest <- c('peak_e', 'tau_e', 'mu_e', 'peak_l', 'tau_l', 'mu_l', 'sigma_l', 'k')
+  param_names <- c('peak_e', 'tau_e', 'mu_e', 'peak_l', 'tau_l', 'mu_l', 'sigma_l', 'k')
   
-  paramGuess <- list()
-  paramGuess[['low']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
-  paramGuess[['mid']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
-  paramGuess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
+  param_guess <- list()
+  param_guess[['low']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
+  param_guess[['mid']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+  param_guess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
   
   for (which_elev in c('low', 'mid', 'high'))
   {
-    subSetData <- samples %>% filter(elevCat == which_elev)
-    dataList <- with(subSetData,list(day = julian, tickNum = larva))
-    fit1 <- mle2(twoPeak, start=paramGuess[[which_elev]], data=dataList,method='BFGS')
+    data_list <- samples %>% 
+      filter(elevCat == which_elev) %>%
+      select(day = julian, tickNum = larva) %>%
+      as.list()
+    fit1 <- mle2(twoPeak, start=param_guess[[which_elev]], data=data_list,method='BFGS')
     fitList[[which_elev]][['fit']] <- fit1
-    for (param in param_of_interest) {
+    for (param in param_names) {
       if(param == 'mu_l' & which_elev == 'high')
       {
         fitList[[which_elev]][[param]] <- c(coef(fit1)['mu_l'], coef(fit1)['mu_l']-25,coef(fit1)['mu_l']+25)
       } else {
-        fitList[[which_elev]][[param]] <- paramRangeTwoPeak(fit1, param, dataList)
+        fitList[[which_elev]][[param]] <- paramRangeTwoPeak(fit1, param, data_list)
       }  
     }
   }
@@ -117,16 +119,17 @@ set.seed(140635)
 
 # This code generates 250 phenology fit curves for each elev. cat.
 # Uses CIs of fit parameters to do that
-# This is to visualize uncertainty in the fits
+# This is to quantify uncertainty in the fits
 # Inputs: results/phenology_fits.RData and data/drag_sampling.csv
 # Output: results/many_fits.RData (also included if you don't want to run this)
 {
-  samples <- read_csv('data/drag_sampling.csv') %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+  samples <- read_csv('data/drag_sampling.csv') %>% 
+    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   load(file = 'results/phenology_fits.RData')
-  pred <- tibble(julian = numeric(), larva = numeric(), larva_frac = numeric(),fitnum = numeric(),elevCat= character())
+  pheno_smooth <- tibble(julian = numeric(), larva = numeric(), larva_frac = numeric(),fitnum = numeric(),elevCat= character())
   for (which_elev in c('low', 'mid', 'high'))
   {
-    subSetData <- samples %>% filter(elevCat == which_elev)
+    elev_data <- samples %>% filter(elevCat == which_elev)
     j<-0
     while (j <250)
     {
@@ -139,10 +142,10 @@ set.seed(140635)
       sigma_l <- runif(1,fitList[[which_elev]]$sigma_l[2],fitList[[which_elev]]$sigma_l[3])
       myK <- coef(fitList[[which_elev]]$fit)['k']
       
-      doesFit <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, subSetData$julian, subSetData$larva) < -logLik(fitList[[which_elev]]$fit) +  qchisq(p = 0.95, df = 7)/2,1,0)
+      does_fit <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, elev_data$julian, elev_data$larva) < -logLik(fitList[[which_elev]]$fit) +  qchisq(p = 0.95, df = 7)/2,1,0)
   
       twoPeakCurveTemp <- function(x) {twoPeakCurve(x,peak_e=peak_e, tau_e=tau_e, mu_e=mu_e,peak_l=peak_l, tau_l=tau_l, mu_l=mu_l, sigma_l=sigma_l)}
-      if (doesFit)
+      if (does_fit)
       {
         j <- j + 1
         temp_pred <-tibble(
@@ -151,13 +154,11 @@ set.seed(140635)
             larva_frac = larva/sum(larva), 
             fitnum = rep(j,365),
             elevCat = which_elev)
-        pred <- rbind(pred,temp_pred)
+        pheno_smooth <- rbind(pheno_smooth,temp_pred)
         print(j)
       }
-      
     }
   }
-  pheno_smooth <- pred  %>% mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
   save(pheno_smooth, file = 'results/many_fits.RData')
 }
 
@@ -201,7 +202,7 @@ set.seed(140635)
   
   # takes in daily average temp at leaf litter and parameters
   # outputs fraction of larvae oviposited, ecolosed, questing on each day
-  # See figure 1 for flow diagram
+  # See figure A1 for flow diagram
   larval_quest <- function(tmean, params)
   {
     tot_day <- length(tmean)
@@ -221,8 +222,11 @@ set.seed(140635)
     }
     
     sum_sol <- 172 # julian day of summer solstice
-    act_prediapause <- lag(ecl, params$hardening, 0) # hardening time
-    # all ticks eclosing before solstice become active, fraction of htem ecolsing afterwards enter diapause (Ogden et al. 2018)
+    # without diapause fraction of ticks becoming active each day 
+    # this takes into account hardening period
+    act_prediapause <- lag(ecl, params$hardening, 0) 
+    # no ticks eclosing before summer solstice enter diapause
+    # fraction of them ecolsing afterwards do (Ogden et al. 2018)
     diapause_frac_daily <- c(rep(0, sum_sol + params$hardening), rep(params$diapause, tot_day - (sum_sol + params$hardening)))
     # fraction of cohort starting activity on each day
     start_act <- (1 - diapause_frac_daily) * act_prediapause
@@ -230,22 +234,24 @@ set.seed(140635)
     diapause_frac_total <- sum(diapause_frac_daily*act_prediapause)
     
     # this section calculates the fraction of cohort questing on each day
-    # sums to greater than 1 since a tick can quest on more than one day
     questing <- rep(0, tot_day)
-    days_to_winter <- min(which(tmean<params$start_quest)[which(tmean<params$start_quest) > sum_sol]) #here by 'winter' i just mean when temp falls below that which larvae quest
+    #here by 'winter' means when temperature drop below the min temp for larvae to quest
+    days_to_winter <- min(which(tmean<params$start_quest)[which(tmean<params$start_quest) > sum_sol]) 
     active <- 0 # tracks number of active ticks
     
-    # fraction of ticks active on a given day that will quest based on temp
+    # fraction of ticks active that will quest based on temp 
     quest_slope <- 1/(params$max_quest-params$start_quest)
     f_quest <- ifelse(tmean < params$max_quest, 
                       quest_slope*(tmean-params$start_quest),
                       -quest_slope*(tmean-params$max_quest) + 1 )
     f_quest <- ifelse(f_quest>1,1,ifelse(f_quest<0,0,f_quest))
     
+    # now actually calculate the questing ticks each day
     for (i in 1:days_to_winter)
     {
-      active <- active + start_act[i] # add number becoming active on day i to alive pool
-      # fraction question on day i 
+      # add number becoming active on day i to alive pool
+      active <- active + start_act[i] 
+      # fraction questing on day i 
       questing[i] <- active * f_quest[i]
       # remove ticks from active cohort if they find a host or die
       active <- (1 - params$host_find * f_quest[i] - params$mort) * active
@@ -255,6 +261,7 @@ set.seed(140635)
     larvae_overwinter <- params$overwinter_surv * (active + sum(start_act[(days_to_winter+1):tot_day]) + diapause_frac_total)
     
     # add overwintered larvae to questing vector
+    # these are early-summer questing ticks
     for (i in 1:days_to_winter)
     {
       questing[i] <- questing[i] + larvae_overwinter * f_quest[i]
@@ -264,7 +271,7 @@ set.seed(140635)
     output_tibble <- tibble(
       ovi = ovi, # fraction of cohort oviposited each day
       ecl = ecl, # fraction of cohort eclosed each day
-      qst = questing, # fraction of cohort questing each day (sums > 1)
+      qst = questing, # fraction of cohort questing each day (sums > 1 since most ticks quest on more than one day)
       qst_norm = questing/sum(questing) # fraction of questing larvae on a given day, for comparison to real data
     )
     
@@ -312,7 +319,7 @@ set.seed(140635)
 # Fig 1A shows phenology curves fit to data
 # Fig 1B shows those fit curves compared to model predictions
 # Inputs: data/drag_sampling.csv, results/many_fits.RData, results/many_model_runs.RData
-# Output: Figure 2 (main_result.pdf)
+# Output: Figure 1 (pheno_curves.pdf)
 {
   load(file = 'results/many_fits.RData') 
   word_to_num <- c('low' = '<200 m', 'mid' = '200-400 m', 'high' = '>400 m')
@@ -389,10 +396,30 @@ set.seed(140635)
               labels = c('A', 'B'), 
               align = 'v')
   dev.off()
+  
+  # calculate psuedo r2
+  wide_mean <- mean_vals %>%
+    pivot_wider(names_from = 'type', values_from = larva_frac)
+  
+  wide_mean %>%
+    group_by(elevCat) %>%
+    summarise(mean_l = mean(observed)) %>%
+    right_join(wide_mean, by = 'elevCat') %>%
+    mutate(
+      numerator = (observed - modeled)^2,
+      denomator = (observed - mean_l)^2
+    ) %>%
+    summarise(r2 = 1 - sum(numerator)/sum(denomator))
+  
+    
 }
 
-
-# Potential new results figure
+# Make Figure 2, comparing day and height of peaks for 
+# fit phenology to model predicted phenology
+# Fig 2A shows comparison of day of early and late peaks
+# Fig 2B shows comparison of height of early and late peaks
+# Inputs: results/many_fits.RData, results/many_model_runs.RData
+# Output: Figure 2 (peak_comp.pdf)
 {
   load(file = 'results/many_fits.RData') 
   load(file = 'results/many_model_runs.RData') 
@@ -401,14 +428,13 @@ set.seed(140635)
   
   pheno_smooth <- pheno_smooth %>% 
     mutate(type = 'observed',
-           elevCat = recode(elevCat,!!!word_to_num),
-           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m'))) %>% 
+           elevCat = recode(elevCat,!!!word_to_num)) %>% 
     select(-larva) 
   model_pred <- model_pred %>% 
     mutate(type = 'modelled',
-           elevCat = recode(elevCat,!!!word_to_num),
-           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
+           elevCat = recode(elevCat,!!!word_to_num))
   
+  # for each fit or model find the day when the late questing starts 
   find_break <- pheno_smooth %>%
     rbind(model_pred) %>%
     group_by(fitnum, elevCat, type) %>%
@@ -417,7 +443,7 @@ set.seed(140635)
     filter(mid_point == 1) %>%
     select(fitnum, elevCat, type, e_to_l_day = julian)
            
-  
+  # summarize each fit or model run to find timing and height of both peaks 
   peak_comp <- pheno_smooth %>%
     rbind(model_pred) %>%
     left_join(find_break, by = c('fitnum', 'elevCat', 'type')) %>%
@@ -427,117 +453,78 @@ set.seed(140635)
     group_by(elevCat, e_or_l, type) %>%
     mutate(e_or_l = factor(e_or_l,levels=c('late','early'))) 
   
-    peak_comp_e <- peak_comp %>% filter(e_or_l == 'early')
-    peak_comp_l <- peak_comp %>% filter(e_or_l == 'late')
+  # some fits/runs don't have a late peak need to go back and add that in as 0
+  # this first makes all combos
+  peak_comp_0 <- expand_grid(
+    fitnum = 1:250,
+    elevCat = c('<200 m', '200-400 m', '>400 m'),
+    type = c('observed', 'modelled'),
+    e_or_l = c('early', 'late')
+  )
+  
+  # now fill in all combos with values, missing peak heights become 0
+  peak_comp <- peak_comp_0 %>%
+    left_join(peak_comp, by=c('fitnum','elevCat','type', 'e_or_l') ) %>%
+    mutate(peak = ifelse(is.na(peak), 0, peak),
+           elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')) )
+  
+  peak_comp_e <- peak_comp %>% filter(e_or_l == 'early')
+  peak_comp_l <- peak_comp %>% filter(e_or_l == 'late')
     
-    when_plot <- peak_comp_l %>%
-      ggplot(aes(x = when, color = type, fill = type, group= type, y = ..scaled..)) +
-      geom_density(alpha = 0.5) +
-      geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
-      facet_wrap(~elevCat) +
-      scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-      scale_fill_manual(values = c( '#d7191c', '#2b83ba')) +
-      coord_flip() + 
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            strip.text =  element_text(color='black',size = 10),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            #plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-            legend.position = 'none') +
-      scale_x_continuous(limits = c(105,350),
-                         breaks =c(121,  182, 244, 305),
-                         labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
-      scale_y_continuous(breaks = NULL) +
-      geom_hline(yintercept = 0) +
-      labs(y='',x='Day of peak')
+  # This makes subfigure 2A
+  when_plot <- peak_comp_l %>%
+    ggplot(aes(x = when, color = type, fill = type, group= type, y = ..scaled..)) +
+    geom_density(alpha = 0.5) +
+    geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
+    facet_wrap(~elevCat) +
+     scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+    scale_fill_manual(values = c( '#d7191c', '#2b83ba')) +
+    coord_flip() + 
+    theme_classic() +
+    theme(strip.background = element_rect(color='transparent'),
+          strip.text =  element_text(color='black',size = 10),
+          axis.text = element_text(color='black',size = 10),
+          axis.title = element_text(size = 10),
+          legend.position = 'none') +
+    scale_x_continuous(limits = c(105,350),
+                       breaks =c(121,  182, 244, 305),
+                       labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
+    scale_y_continuous(breaks = NULL) +
+    geom_hline(yintercept = 0) +
+    labs(y='',x='Day of peak')
     
-    peak_plot <- peak_comp_l %>%
-      ggplot(aes(x = peak, color = type, fill = type, group= type, y = ..scaled..)) +
-      geom_density(alpha = 0.5) +
-      geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
-      facet_wrap(~elevCat) +
-      scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-      scale_fill_manual(values = c('#d7191c', '#2b83ba')) +
-      coord_flip() + 
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            strip.text = element_blank(),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            #plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-            legend.position = 'none') +
-      scale_y_continuous(breaks = c(-0.5,0.5), labels = c('Early', 'Late')) +
-      geom_hline(yintercept = 0) +
-      labs(y='',x='Larval fraction at peak')
+  # This makes subfigure 2B
+  peak_plot <- peak_comp_l %>%
+    ggplot(aes(x = peak, color = type, fill = type, group= type, y = ..scaled..)) +
+    geom_density(alpha = 0.5) +
+    geom_density(data = peak_comp_e,aes(y=-..scaled..,),alpha=0.5) +
+    facet_wrap(~elevCat) +
+    scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+    scale_fill_manual(values = c('#d7191c', '#2b83ba')) +
+    coord_flip() + 
+    theme_classic() +
+    theme(strip.background = element_rect(color='transparent'),
+          strip.text = element_blank(),
+          axis.text = element_text(color='black',size = 10),
+          axis.title = element_text(size = 10),
+          legend.position = 'none') +
+    scale_y_continuous(breaks = c(-0.5,0.5), labels = c('Early', 'Late')) +
+    geom_hline(yintercept = 0) +
+    labs(y='',x='Larval fraction at peak')
     
-    
-    pdf('figures/peak_comp.pdf',width=3.5,height=6)
+  # Make figure 2  
+  pdf('figures/peak_comp.pdf',width=3.5,height=6)
     plot_grid(when_plot, 
               peak_plot,
               ncol = 1, 
               labels = c('A', 'B'), 
               align = 'v')
-    dev.off()
-    
-    
-}
-
-# ggridges version
-{
+  dev.off()
   
-  comp1_plot <- peak_comp %>%
-    ggplot(aes(y = when, color = type, x = e_or_l, fill =type)) +
-    geom_violin(alpha = 0.5, scale = 3) + 
-    scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-    scale_fill_manual(values = c( '#d7191c', '#2b83ba')) +
-    facet_wrap(~elevCat) +
-    theme_classic() +
-    theme(strip.background = element_rect(color='transparent'),
-          strip.text = element_blank(),
-          axis.text = element_text(color='black',size = 10),
-          axis.title = element_text(size = 10),
-          plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-          legend.position = 'none') +
-    scale_y_continuous(limits = c(105,305),
-                       breaks =c(121,  182, 244, 305),
-                       labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
-    labs(x='',y='Timing of peak')
-  
-  label_2A <- tibble(elevCat = c('low','mid','high'),
-                     julian=rep(212,3),
-                     larva=rep(200,3),
-                     lab = c('<200 m', '200 - 400 m', '>400 m'),
-                     fitnum = 1) %>%
-    mutate(elevCat = factor(elevCat,levels=c('low','mid','high')))
-  
-  comp2_plot <- peak_comp %>%
-    ggplot(aes(y = peak, color = type, x = e_or_l, fill =type)) +
-    geom_violin(alpha = 0.5, scale = 3) + 
-    scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
-    scale_fill_manual(values = c( '#d7191c', '#2b83ba')) +
-    facet_wrap(~elevCat)  +
-    theme_classic() +
-    theme(strip.background = element_rect(color='transparent'),
-          strip.text = element_blank(),
-          axis.text = element_text(color='black',size = 10),
-          axis.title = element_text(size = 10),
-          plot.margin = unit(c(-0.35,0,0,0), 'cm'),
-          legend.position = 'none') +
-    labs(y='Larva fraction at peak', x = '')
-  
-  plot_grid(comp1_plot, 
-            comp2_plot,
-            ncol = 1, 
-            labels = c('A', 'B'), 
-            align = 'v')
 }
 
 
-
-###### Supplementary figures
-
-# Makes Figure A1, which shows sampling resutls by site
+# Makes Figure A2, which shows sampling results by site
 # Input: data/drag_sampling.csv
 {
   samples <- read_csv('data/drag_sampling.csv')
@@ -623,78 +610,5 @@ set.seed(140635)
   
 }
 
-# Makes Figure A2, relationship between fraction of larvae
-# found in early summer versus elevation
-# Input: data/drag_sampling.csv
-{
-  samples <- read_csv('data/drag_samplingwith2020.csv')
-  
-  late <- samples %>%
-    filter(julian > 212) %>%
-    group_by(site) %>%
-    summarise(fall_l = mean(larva),
-              elev = unique(elev))
-  early <- samples %>%
-    filter(julian <= 212) %>%
-    group_by(site) %>%
-    summarise(spring_l = mean(larva))
-  
-  larva_comparision <- late %>%
-    inner_join(early,by='site') %>%
-    mutate(early_frac = spring_l/(spring_l+fall_l) )
-  
-  larva_comparision %>%
-    filter(is.finite(early_frac)) %>%
-    lm(early_frac ~ elev, data = .) %>%
-    summary()
-  
-  pdf('figures/elev_l_frac.pdf',width=3.14,height=2.5)
-    larva_comparision %>% 
-      ggplot(aes(elev,early_frac)) +
-      geom_point() +
-      theme_classic() +
-      theme(axis.text = element_text(color='black', size =10),
-            axis.title = element_text(size = 10)) +
-      labs(x = 'Elevation (m)', y = 'Early-summer fraction') +
-      stat_smooth(se=F,method='lm',color='black') + 
-      coord_cartesian(xlim=c(120,600), ylim = c(0,1))
-  dev.off()
-  
-}
-
-# Makes Figure A3, compares fit parameters with CI
-# for the three elevation categories
-# Parameters compared are the heights 
-# of the early- and late-summer questing peaks
-# Input: results/phenology_fits.RData
-{
-  load(file = 'results/phenology_fits.RData') 
-  # compare parameters
-  paramcomp <- tibble(
-    elev = c('<200 m','<200 m','200-400 m','200-400 m','>400 m','>400 m'),
-    when = rep(c('Early','Late'),3),
-    param = c(fitList$low$peak_e[1],fitList$low$peak_l[1],fitList$mid$peak_e[1],fitList$mid$peak_l[1],fitList$high$peak_e[1],fitList$high$peak_l[1]),
-    upper_param = c(fitList$low$peak_e[3],fitList$low$peak_l[3],fitList$mid$peak_e[3],fitList$mid$peak_l[3],fitList$high$peak_e[3],fitList$high$peak_l[3]),
-    lower_param =c(fitList$low$peak_e[2],fitList$low$peak_l[2],fitList$mid$peak_e[2],fitList$mid$peak_l[2],fitList$high$peak_e[2],fitList$high$peak_l[2]),
-  ) %>% 
-    mutate(elev= factor(elev,levels = c('<200 m','200-400 m','>400 m')))
-  
-  pdf('figures/peak_param_comp.pdf',width=3.14,height=3)
-    ylab <- expression(paste('Peak (larvae per 200 ',m^2,')'))
-    paramcomp %>%
-      ggplot(aes(when,param)) +
-      geom_point() +
-      facet_wrap(~elev) +
-      geom_errorbar(aes(ymin=lower_param,ymax=upper_param), width=0.5) +
-      theme_classic() +
-      theme(strip.background = element_rect(color='transparent'),
-            axis.text = element_text(color='black',size = 10),
-            axis.title = element_text(size = 10),
-            strip.text = element_text(size = 10)) +
-      labs(x='',y=ylab) +
-      scale_y_log10(breaks=c(1e-2,1e-1,1,1e1,1e2),
-                    labels = c(.001,0.1,1,10,100))    
-  dev.off()
-}
 
 
