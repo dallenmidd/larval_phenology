@@ -308,9 +308,9 @@ set.seed(140635)
   save(model_pred, file = 'results/many_model_runs.RData')
 }
 
-# Make Figure 2, the main result 
-# Fig 2A shows phenology curves fit to data
-# Fig 2B shows those fit curves compared to model predictions
+# Make Figure 1, comparing fit and predicted phenology curves
+# Fig 1A shows phenology curves fit to data
+# Fig 1B shows those fit curves compared to model predictions
 # Inputs: data/drag_sampling.csv, results/many_fits.RData, results/many_model_runs.RData
 # Output: Figure 2 (main_result.pdf)
 {
@@ -325,7 +325,7 @@ set.seed(140635)
            fitnum = 1)
   
   ylab <- expression(paste('Larvae (per 200 ',m^2,')'))
-  # this is Figure 2A
+  # this is Figure 1A
   fit_pheno_plot <- samples %>%
     ggplot(aes(julian,larva,group = fitnum)) +
     geom_point(cex=0.25) +
@@ -341,9 +341,8 @@ set.seed(140635)
                        breaks =c(121,  182, 244, 305),
                        labels=c('', '','', '')) +
     scale_y_continuous(limits = c(0,200)) +
-    labs(x='',y=ylab) #+
-    #geom_text(data=label_2A,aes(label=lab),size=4) 
-  
+    labs(x='',y=ylab)
+
   load(file = 'results/many_model_runs.RData') 
   
   pheno_smooth <- pheno_smooth %>%
@@ -363,7 +362,7 @@ set.seed(140635)
     mutate(fitnum = 1) %>%
     arrange(type,julian)
 
-  # Make Figure 2B
+  # Make Figure 1B
   mod_v_obs_plot <- model_pred %>%
     ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
     geom_path(alpha = 0.04) +
@@ -382,8 +381,8 @@ set.seed(140635)
                        labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
     labs(x='',y='Fraction questing')
  
-  # Combine subfigures into Figure 2
-  pdf('figures/results_fig.pdf',width=7.25,height=6)
+  # Combine subfigures into Figure 1
+  pdf('figures/pheno_curves.phdf',width=7.25,height=6)
     plot_grid(fit_pheno_plot, 
               mod_v_obs_plot,
               ncol = 1, 
@@ -473,7 +472,7 @@ set.seed(140635)
       labs(y='',x='Larval fraction at peak')
     
     
-    pdf('figures/param_comp_ss.pdf',width=3.5,height=6)
+    pdf('figures/peak_comp.pdf',width=3.5,height=6)
     plot_grid(when_plot, 
               peak_plot,
               ncol = 1, 
