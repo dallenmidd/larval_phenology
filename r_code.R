@@ -85,8 +85,7 @@ set.seed(140635)
 # Output: results/phenology_fits.RData, 
 # this is already included if you don't want to run all this
 {
-  samples <- read_csv('data/drag_sampling.csv') %>% 
-    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+  samples <- read_csv('data/drag_sampling.csv')
   fitList<-list()
   fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list() 
 
