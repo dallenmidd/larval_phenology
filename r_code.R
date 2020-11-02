@@ -523,7 +523,6 @@ set.seed(140635)
   
 }
 
-
 # Makes Figure A2, which shows sampling results by site
 # Input: data/drag_sampling.csv
 {
@@ -609,6 +608,3 @@ set.seed(140635)
   dev.off()
   
 }
-
-
-
