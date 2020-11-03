@@ -390,7 +390,7 @@ set.seed(31416)
     labs(x='',y='Fraction questing')
  
   # Combine subfigures into Figure 1
-  pdf('figures/pheno_curves.phdf',width=7.25,height=6)
+  pdf('figures/pheno_curves.pdf',width=7.25,height=6)
     plot_grid(fit_pheno_plot, 
               mod_v_obs_plot,
               ncol = 1, 
