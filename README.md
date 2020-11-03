@@ -8,9 +8,9 @@ Data and R code for a manuscript in submission. The manuscript measures how larv
   * `data` the date when the sample took place. In year-month-day format.
   * `julian` the julian day of the sample.
   * `larva` the number of larval ticks found in the 200 m<sup>2</sup> sample.
-* `data/processed_prism.csv` this gives the estimated daily mean leaf-litter temperature at each site. These are generated from PRISM modeled temperature and an air to leaf-litter temperature difference. See manuscript for details. The columns are:
+* `data/leaf_litter_temp.csv` this gives the estimated daily mean leaf-litter temperature at each site. These are generated from PRISM modeled temperature and an air to leaf-litter temperature difference. See manuscript for details. The columns are:
   * `jday` julian day.
-  * `tmean` estimated mean leaf litter temperature.
+  * `tmean` estimated mean leaf litter temperature (C). 
   * `site` name of site.
   * `elevCat` elevation category of site.
 * `r_code.R` gives all the code for the analysis, phenology model, and to make the figures.

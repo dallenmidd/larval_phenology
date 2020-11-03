@@ -1,11 +1,12 @@
 # Analysis Code for 
-# "A mechanistic model explains variation in larval tick questing phenology along an elevation gradient"
+# "A mechanistic model explains variation in larval  
+# tick questing phenology along an elevation gradient"
 # Submitted Nov 2020
 
 require(tidyverse)
 require(bbmle)
 require(cowplot)
-set.seed(140635)
+set.seed(31416)
 
 # Define functions for the two-peak phenology curve
 # doesn't do anything on its own but these functions 
@@ -117,7 +118,7 @@ set.seed(140635)
  save(fitList,file = 'results/phenology_fits.RData')
 }
 
-# This code generates 250 phenology fit curves for each elev. cat.
+# This code generates 500 phenology fit curves for each elev. cat.
 # Uses CIs of fit parameters to do that
 # This is to quantify uncertainty in the fits
 # Inputs: results/phenology_fits.RData and data/drag_sampling.csv
@@ -131,7 +132,7 @@ set.seed(140635)
   {
     elev_data <- samples %>% filter(elevCat == which_elev)
     j<-0
-    while (j <250)
+    while (j <500)
     {
       peak_e <- runif(1,fitList[[which_elev]]$peak_e[2],fitList[[which_elev]]$peak_e[3])
       tau_e <- runif(1,fitList[[which_elev]]$tau_e[2],fitList[[which_elev]]$tau_e[3])
@@ -279,12 +280,12 @@ set.seed(140635)
   }
 }
 
-# This code generates 250 runs of the phenology model for each
+# This code generates 500 runs of the phenology model for each
 # elevation category. It requires the code block above
-# Input: data/processed_prism.RData
+# Input: data/leaf_litter_temp.csv
 # Output: result/many_model_runs.RData
 {
-  siteClimate <- read_csv(file = 'data/processed_prism.csv')
+  siteClimate <- read_csv(file = 'data/leaf_litter_temp.csv')
   
   model_pred <- tibble(
     julian = numeric(),
@@ -292,7 +293,7 @@ set.seed(140635)
     elevCat = character(),
     fitnum = numeric())
   
-  for (j in 1:250) 
+  for (j in 1:500) 
   {
     for (which_elev in c('low', 'mid', 'high'))
     {
@@ -343,7 +344,7 @@ set.seed(140635)
           axis.text = element_text(color='black',size = 10),
           plot.margin = unit(c(0,0,-0.35,0), 'cm'),
           axis.title = element_text(size = 10)) +
-    geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.04) +
+    geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.015) +
     scale_x_continuous(limits = c(105,305),
                        breaks =c(121,  182, 244, 305),
                        labels=c('', '','', '')) +
@@ -372,7 +373,7 @@ set.seed(140635)
   # Make Figure 1B
   mod_v_obs_plot <- model_pred %>%
     ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
-    geom_path(alpha = 0.04) +
+    geom_path(alpha = 0.015) +
     geom_path(data = mean_vals,lwd=0.75) +
     facet_wrap(~elevCat) +
     theme_classic() +
@@ -396,22 +397,6 @@ set.seed(140635)
               labels = c('A', 'B'), 
               align = 'v')
   dev.off()
-  
-  # calculate psuedo r2
-  wide_mean <- mean_vals %>%
-    pivot_wider(names_from = 'type', values_from = larva_frac)
-  
-  wide_mean %>%
-    group_by(elevCat) %>%
-    summarise(mean_l = mean(observed)) %>%
-    right_join(wide_mean, by = 'elevCat') %>%
-    mutate(
-      numerator = (observed - modeled)^2,
-      denomator = (observed - mean_l)^2
-    ) %>%
-    summarise(r2 = 1 - sum(numerator)/sum(denomator))
-  
-    
 }
 
 # Make Figure 2, comparing day and height of peaks for 
@@ -456,7 +441,7 @@ set.seed(140635)
   # some fits/runs don't have a late peak need to go back and add that in as 0
   # this first makes all combos
   peak_comp_0 <- expand_grid(
-    fitnum = 1:250,
+    fitnum = 1:500,
     elevCat = c('<200 m', '200-400 m', '>400 m'),
     type = c('observed', 'modelled'),
     e_or_l = c('early', 'late')
@@ -603,7 +588,7 @@ set.seed(140635)
   
 
   
-  pdf('figures/l_pheno_bysite.pdf',width=6,height=5)  
+  pdf('figures/pheno_bysite.pdf',width=6,height=5)  
     plot_grid(p1,p2,p3, align = 'v', ncol = 1)
   dev.off()
   
