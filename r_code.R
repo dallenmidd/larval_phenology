@@ -285,7 +285,7 @@ set.seed(31416)
 # Input: data/leaf_litter_temp.csv
 # Output: result/many_model_runs.RData
 {
-  siteClimate <- read_csv(file = 'data/leaf_litter_temp.csv')
+  leaf_litter_temp <- read_csv(file = 'data/leaf_litter_temp.csv')
   
   model_pred <- tibble(
     julian = numeric(),
@@ -298,7 +298,7 @@ set.seed(31416)
     for (which_elev in c('low', 'mid', 'high'))
     {
       
-      temp_climate <- siteClimate %>%
+      elev_cat_temp <- leaf_litter_temp %>%
         filter(elevCat == which_elev) %>%
         group_by(jday) %>%
         summarise(tmean = mean(tmean))
@@ -306,7 +306,7 @@ set.seed(31416)
       param <- rand_param(params_with_CI) 
       temp_pred <- tibble(
         julian = 1:365,
-        larva_frac = larval_quest(temp_climate$tmean[1:365], param)$qst_norm,
+        larva_frac = larval_quest(elev_cat_temp$tmean[1:365], param)$qst_norm,
         elevCat = which_elev,
         fitnum = j )
       model_pred<- rbind(model_pred,temp_pred)
@@ -327,7 +327,7 @@ set.seed(31416)
   pheno_smooth <- pheno_smooth %>% 
     mutate(elevCat = recode(elevCat,!!!word_to_num),
            elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
-  samples <- read_csv('data/drag_samplingwith2020.csv') %>% 
+  samples <- read_csv('data/drag_sampling.csv') %>% 
     mutate(elevCat = cut(elev,c(0,200,400,1000),c('<200 m','200-400 m','>400 m')),
            elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')),
            fitnum = 1)
