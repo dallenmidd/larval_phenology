@@ -295,13 +295,20 @@ set.seed(31416)
   
   for (j in 1:500) 
   {
-    for (which_elev in c('low', 'mid', 'high'))
+    for (which_elev in c('low', 'mid', 'high', 'mean'))
     {
       
+      if (which_elev == 'mean')
+      {
+        elev_cat_temp <- leaf_litter_temp %>%
+          group_by(jday) %>%
+          summarise(tmean = mean(tmean)) 
+      } else {
       elev_cat_temp <- leaf_litter_temp %>%
         filter(elevCat == which_elev) %>%
         group_by(jday) %>%
         summarise(tmean = mean(tmean))
+      }
       
       param <- rand_param(params_with_CI) 
       temp_pred <- tibble(
