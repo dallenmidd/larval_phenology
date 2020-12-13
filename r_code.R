@@ -89,21 +89,29 @@ set.seed(31416)
   samples <- read_csv('data/drag_sampling.csv') %>% 
     mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   fitList<-list()
-  fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list() 
+  fitList[['low']] <- list(); fitList[['mid']] <- list(); fitList[['high']] <- list(); fitList[['mean']] <- list() 
 
   param_names <- c('peak_e', 'tau_e', 'mu_e', 'peak_l', 'tau_l', 'mu_l', 'sigma_l', 'k')
   
   param_guess <- list()
   param_guess[['low']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
   param_guess[['mid']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+  param_guess[['mean']] <- list(peak_e=18, tau_e=160, mu_e=20, peak_l=25, tau_l=180, mu_l=50, sigma_l=0.2,k=0.2)
   param_guess[['high']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
   
-  for (which_elev in c('low', 'mid', 'high'))
+  for (which_elev in c('low', 'mid', 'high','mean'))
   {
+    if (which_elev == 'mean')
+    {
+      data_list <- samples %>% 
+        select(day = julian, tickNum = larva) %>%
+        as.list()
+    } else { 
     data_list <- samples %>% 
       filter(elevCat == which_elev) %>%
       select(day = julian, tickNum = larva) %>%
       as.list()
+    }
     fit1 <- mle2(twoPeak, start=param_guess[[which_elev]], data=data_list,method='BFGS')
     fitList[[which_elev]][['fit']] <- fit1
     for (param in param_names) {
@@ -128,9 +136,14 @@ set.seed(31416)
     mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
   load(file = 'results/phenology_fits.RData')
   pheno_smooth <- tibble(julian = numeric(), larva = numeric(), larva_frac = numeric(),fitnum = numeric(),elevCat= character())
-  for (which_elev in c('low', 'mid', 'high'))
+  for (which_elev in c('low', 'mid', 'high', 'mean'))
   {
-    elev_data <- samples %>% filter(elevCat == which_elev)
+    if (which_elev == 'mean')
+    {
+      elev_data <- samples
+    } else {
+      elev_data <- samples %>% filter(elevCat == which_elev)
+    }
     j<-0
     while (j <500)
     {
@@ -331,7 +344,8 @@ set.seed(31416)
 {
   load(file = 'results/many_fits.RData') 
   word_to_num <- c('low' = '<200 m', 'mid' = '200-400 m', 'high' = '>400 m')
-  pheno_smooth <- pheno_smooth %>% 
+  pheno_smooth2 <- pheno_smooth %>% 
+    filter(elevCat != 'mean') %>%
     mutate(elevCat = recode(elevCat,!!!word_to_num),
            elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
   samples <- read_csv('data/drag_sampling.csv') %>% 
@@ -351,7 +365,7 @@ set.seed(31416)
           axis.text = element_text(color='black',size = 10),
           plot.margin = unit(c(0,0,-0.35,0), 'cm'),
           axis.title = element_text(size = 10)) +
-    geom_path(data=pheno_smooth,aes(julian,larva,group=fitnum), alpha = 0.015) +
+    geom_path(data=pheno_smooth2,aes(julian,larva,group=fitnum), alpha = 0.015) +
     scale_x_continuous(limits = c(105,305),
                        breaks =c(121,  182, 244, 305),
                        labels=c('', '','', '')) +
@@ -360,28 +374,59 @@ set.seed(31416)
 
   load(file = 'results/many_model_runs.RData') 
   
-  pheno_smooth <- pheno_smooth %>%
+  pheno_smooth2 <- pheno_smooth2 %>%
     mutate(type = 'observed') %>%
     select(-larva)
 
-  model_pred <- model_pred %>%
+  comined_data <- model_pred %>%
+    filter(elevCat != 'mean') %>%
     mutate(type = 'modeled') %>%
-    rbind(pheno_smooth) %>%
+    rbind(pheno_smooth2) %>%
     mutate(elevCat = recode(elevCat,!!!word_to_num),
            elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m'))) %>%
     arrange(fitnum,type,julian) 
   
-  mean_vals <- model_pred %>%
+  mean_vals <- comined_data %>%
     group_by(julian, elevCat, type) %>%
     summarise(larva_frac = mean(larva_frac)) %>%
     mutate(fitnum = 1) %>%
     arrange(type,julian)
+  
+  mean_clim_mod <- model_pred %>%
+    filter(elevCat == 'mean') %>%
+    group_by(julian) %>%
+    summarise(larva_frac = mean(larva_frac))
+    
+  mean_clim_mod <- tibble(
+    julian = rep(mean_clim_mod$julian,3),
+    larva_frac = rep(mean_clim_mod$larva_frac,3),
+    fitnum = 1,
+    type = 'ave_clim',
+    elevCat = c(rep('<200 m',365),rep('200-400 m',365),rep('>400 m',365))
+  ) %>%
+   mutate(elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
 
+  phenomological_mod <- pheno_smooth %>%
+    filter(elevCat == 'mean') %>%
+    group_by(julian) %>%
+    summarise(larva_frac = mean(larva_frac))
+  
+  phenomological_mod <- tibble(
+    julian = rep(phenomological_mod$julian,3),
+    larva_frac = rep(phenomological_mod$larva_frac,3),
+    fitnum = 1,
+    type = 'phenomological_mod',
+    elevCat = c(rep('<200 m',365),rep('200-400 m',365),rep('>400 m',365))
+  ) %>%
+    mutate(elevCat = factor(elevCat, levels = c('<200 m', '200-400 m', '>400 m')))
+  
   # Make Figure 1B
-  mod_v_obs_plot <- model_pred %>%
+  mod_v_obs_plot <- comined_data %>%
     ggplot(aes(julian,larva_frac, group = fitnum, color=type)) +
     geom_path(alpha = 0.015) +
     geom_path(data = mean_vals,lwd=0.75) +
+    geom_path(data = mean_clim_mod) +
+    geom_path(data = phenomological_mod,lty=2) +
     facet_wrap(~elevCat) +
     theme_classic() +
     theme(strip.background = element_rect(color='transparent'),
@@ -390,7 +435,7 @@ set.seed(31416)
           axis.title = element_text(size = 10),
           plot.margin = unit(c(-0.35,0,0,0), 'cm'),
           legend.position = 'none') +
-    scale_color_manual(values = c( '#d7191c', '#2b83ba')) +
+    scale_color_manual(values = c('black', '#d7191c', '#2b83ba', 'black')) +
     scale_x_continuous(limits = c(105,305),
                        breaks =c(121,  182, 244, 305),
                        labels=c('May 1', 'Jul 1','Sep 1', 'Nov 1')) +
