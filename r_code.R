@@ -156,7 +156,7 @@ set.seed(31416)
       sigma_l <- runif(1,fitList[[which_elev]]$sigma_l[2],fitList[[which_elev]]$sigma_l[3])
       myK <- coef(fitList[[which_elev]]$fit)['k']
       
-      does_fit <- ifelse(twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, elev_data$julian, elev_data$larva) < -logLik(fitList[[which_elev]]$fit) +  qchisq(p = 0.95, df = 7)/2,1,0)
+      does_fit <- twoPeak(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, myK, elev_data$julian, elev_data$larva) < -logLik(fitList[[which_elev]]$fit) +  qchisq(p = 0.95, df = 7)/2
   
       twoPeakCurveTemp <- function(x) {twoPeakCurve(x,peak_e=peak_e, tau_e=tau_e, mu_e=mu_e,peak_l=peak_l, tau_l=tau_l, mu_l=mu_l, sigma_l=sigma_l)}
       if (does_fit)
