@@ -263,7 +263,7 @@ set.seed(31416)
     # now actually calculate the questing ticks each day
     for (i in 1:days_to_winter)
     {
-      # add number becoming active on day i to alive pool
+      # add number becoming active on day i to active pool
       active <- active + start_act[i] 
       # fraction questing on day i 
       questing[i] <- active * f_quest[i]
@@ -271,7 +271,7 @@ set.seed(31416)
       active <- (1 - params$host_find * f_quest[i] - params$mort) * active
     }
     # fraction of the cohort which survives overwinters
-    # overwinter survival times three groups: active at end of questing season; those starting activity after questing season; those that entered diapause earlier
+    # overwinter survival times three groups: still active at end of questing season; those starting activity after questing season; those that entered diapause earlier
     larvae_overwinter <- params$overwinter_surv * (active + sum(start_act[(days_to_winter+1):tot_day]) + diapause_frac_total)
     
     # add overwintered larvae to questing vector
