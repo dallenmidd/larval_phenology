@@ -6,7 +6,7 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
-set.seed(31416)
+set.seed(31417)
 
 # Define functions for the two-peak phenology curve
 # doesn't do anything on its own but these functions 
