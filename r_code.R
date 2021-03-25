@@ -645,3 +645,25 @@ set.seed(31417)
   dev.off()
   
 }
+
+# New analysis to do model comparison
+{
+  samples <- read_csv('data/drag_sampling.csv') %>% 
+    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+  
+  load(file = 'results/many_model_runs.RData') 
+  
+  mean_vals <- model_pred %>%
+    group_by(julian, elevCat) %>%
+    summarise(larva_frac = mean(larva_frac)) %>%
+    arrange(elevCat,julian)
+  
+  findPeak <- function(peak, k, tickNum, pheno_mod)
+  {
+    pheno_mod <- peak/max(pheno_mod) * pheno_mod
+    nll <- -sum(dnbinom(x = tickNum, mu = pheno_mod, size = k, log =TRUE))
+    return(nll )
+  }
+  
+  
+}
