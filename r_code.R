@@ -6,6 +6,7 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
+require(lubridate)
 set.seed(31417)
 
 # Define functions for the two-peak phenology curve
@@ -658,12 +659,26 @@ set.seed(31417)
     summarise(larva_frac = mean(larva_frac)) %>%
     arrange(elevCat,julian)
   
-  findPeak <- function(peak, k, tickNum, pheno_mod)
+  findPeak <- function(peak, k, tickNum, day)
   {
     pheno_mod <- peak/max(pheno_mod) * pheno_mod
-    nll <- -sum(dnbinom(x = tickNum, mu = pheno_mod, size = k, log =TRUE))
+    pred_larva <- pheno_mod[day]
+    nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
     return(nll )
   }
+  
+  data_list <- samples %>% 
+    filter(site == 'Foote', year(date) == 2017) %>%
+    select(day = julian, tickNum = larva) %>%
+    as.list()
+
+  data_list[['pheno_mod']] <- mean_vals %>%
+    filter(elevCat == 'low') %>%
+    pull(larva_frac)
+  
+  fit1 <- mle2(findPeak, start=param_guess[[which_elev]], data=data_list,method='BFGS')
+  fitList[[which_elev]][['fit']] <- fit1
+  
   
   
 }
