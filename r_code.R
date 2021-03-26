@@ -659,6 +659,11 @@ set.seed(31417)
     summarise(larva_frac = mean(larva_frac)) %>%
     arrange(elevCat,julian)
   
+  sites <- samples %>% pull(site) %>% unique()
+  years <- 2016:2020
+  
+  
+  
   findPeak <- function(peak, k, tickNum, day)
   {
     pheno_mod <- peak/max(pheno_mod) * pheno_mod
@@ -668,17 +673,21 @@ set.seed(31417)
   }
   
   data_list <- samples %>% 
-    filter(site == 'Foote', year(date) == 2017) %>%
+    filter(site == 'Chipman', year(date) == 2018) %>%
     select(day = julian, tickNum = larva) %>%
     as.list()
 
-  data_list[['pheno_mod']] <- mean_vals %>%
+  pheno_pred <- mean_vals %>%
     filter(elevCat == 'low') %>%
     pull(larva_frac)
   
-  fit1 <- mle2(findPeak, start=param_guess[[which_elev]], data=data_list,method='BFGS')
-  fitList[[which_elev]][['fit']] <- fit1
+  data_list[['pheno_mod']] <- pheno_pred
   
+  fit1 <- mle2(findPeak, start=list(peak = 100, k = 0.1), data=data_list,method='BFGS')
+  
+  plot(data_list$day, data_list$tickNum)
+  this_pred <- coef(fit1)['peak']/max(pheno_pred)*pheno_pred
+  lines(this_pred)
   
   
 }
