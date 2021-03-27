@@ -1,7 +1,7 @@
 # Analysis Code for 
 # "A mechanistic model explains variation in larval  
 # tick questing phenology along an elevation gradient"
-# Submitted Nov 2020
+# Submitted Apr 2021
 
 require(tidyverse)
 require(bbmle)
@@ -659,35 +659,93 @@ set.seed(31417)
     summarise(larva_frac = mean(larva_frac)) %>%
     arrange(elevCat,julian)
   
-  sites <- samples %>% pull(site) %>% unique()
-  years <- 2016:2020
-  
-  
-  
-  findPeak <- function(peak, k, tickNum, day)
+  model_comp1 <- function(peak, k, tickNum, day, pheno_mod)
   {
     pheno_mod <- peak/max(pheno_mod) * pheno_mod
     pred_larva <- pheno_mod[day]
     nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
+    #nll <- -sum(dpois(x = tickNum, lambda = pred_larva, log = TRUE))
     return(nll )
   }
   
-  data_list <- samples %>% 
-    filter(site == 'Chipman', year(date) == 2018) %>%
-    select(day = julian, tickNum = larva) %>%
-    as.list()
+  
+  fits1 <- list()
+  tot_like1 <- 0
+  fits2 <- list()
+  tot_like2 <- 0
+  
+  for (which_cat in c('low', 'mid', 'high'))
+  {
+    data_list1 <- samples %>% 
+      filter(elevCat == which_cat) %>%
+      select(day = julian, tickNum = larva, elevCat = elevCat) %>%
+      as.list()
+    data_list2 <- samples %>% 
+      filter(elevCat == which_cat) %>%
+      select(day = julian, tickNum = larva, elevCat = elevCat) %>%
+      as.list()
+    
+    pheno_pred1 <- mean_vals %>%
+      filter(elevCat == 'mean') %>%
+      pull(larva_frac)
+    
+    pheno_pred2 <- mean_vals %>%
+      filter(elevCat == which_cat) %>%
+      pull(larva_frac)
+    
+    
+    data_list1[['pheno_mod']] <- pheno_pred1
+    data_list2[['pheno_mod']] <- pheno_pred2
+    
+    start_param <- list(peak = ifelse(which_cat=='low',50,ifelse(which_cat=='mid',30,4)), k = 0.15)
+    
+    fits1[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list1) 
+    fits2[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list2) 
+    tot_like1 <- tot_like1 + as.numeric(logLik(fits1[[which_cat]]))
+    tot_like2 <- tot_like2 + as.numeric(logLik(fits2[[which_cat]]))
+  }
+  
+  
+  
 
-  pheno_pred <- mean_vals %>%
+  #### Compare predictions
+  
+  mean_pred <- mean_vals %>%
+    filter(elevCat == 'mean') %>%
+    pull(larva_frac)
+  
+  low_pred <- mean_vals %>%
     filter(elevCat == 'low') %>%
     pull(larva_frac)
   
-  data_list[['pheno_mod']] <- pheno_pred
+  mid_pred <- mean_vals %>%
+    filter(elevCat == 'mid') %>%
+    pull(larva_frac)
   
-  fit1 <- mle2(findPeak, start=list(peak = 100, k = 0.1), data=data_list,method='BFGS')
+  high_pred <- mean_vals %>%
+    filter(elevCat == 'high') %>%
+    pull(larva_frac)
   
-  plot(data_list$day, data_list$tickNum)
-  this_pred <- coef(fit1)['peak']/max(pheno_pred)*pheno_pred
-  lines(this_pred)
+  pred_tibble <- 
+    tibble(julian = rep(1:365,6),
+           elevCat = c(rep('low',365),rep('mid',365),rep('high',365),rep('low',365),rep('mid',365),rep('high',365)),
+           larva = c(coef(fits1[['low']])['peak']*mean_pred/max(mean_pred),
+                     coef(fits1[['mid']])['peak']*mean_pred/max(mean_pred),
+                     coef(fits1[['high']])['peak']*mean_pred/max(mean_pred),
+                     coef(fits2[['low']])['peak']*low_pred/max(low_pred),
+                     coef(fits2[['mid']])['peak']*mid_pred/max(mid_pred),
+                     coef(fits2[['high']])['peak']*high_pred/max(high_pred)),
+           mod_type = c(rep('mean_val',365*3),rep('elev_val',365*3))
+                        )
+  
+  
+  samples %>%
+    ggplot(aes(julian,larva)) +
+    geom_point() +
+    stat_smooth(se=F) +
+    facet_wrap(~elevCat, scale = 'free_y') +
+    geom_path(data = pred_tibble, aes(linetype = mod_type))
+  
   
   
 }
