@@ -650,25 +650,94 @@ set.seed(31417)
 # New analysis to do model comparison
 {
   samples <- read_csv('data/drag_sampling.csv') %>% 
-    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high')))
+    mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high'))) 
   
   load(file = 'results/many_model_runs.RData') 
-  
   mean_vals <- model_pred %>%
     group_by(julian, elevCat) %>%
     summarise(larva_frac = mean(larva_frac)) %>%
     arrange(elevCat,julian)
   
+  # Just run model on mean param
+  {
+    
+    params_mean <- list(
+      ovi_m = 187,
+      ovi_sd = 50,
+      ecl_m = 534,
+      ecl_sd = 28,
+      diapause = 0.5,
+      hardening = 21,
+      start_quest = 10,
+      max_quest = 25,
+      host_find = 0.02, 
+      mort = 0.0099, 
+      overwinter_surv = 0.45
+    )
+    leaf_litter_temp <- read_csv(file = 'data/leaf_litter_temp.csv')
+  
+    model_pred <- tibble(
+      julian = numeric(),
+      larva_frac = numeric(),
+      elevCat = character())
+  
+    for (which_elev in c('low', 'mid', 'high', 'mean'))
+      {
+        if (which_elev == 'mean') {
+          elev_cat_temp <- leaf_litter_temp %>%
+            group_by(jday) %>%
+            summarise(tmean = mean(tmean))
+        } else {
+          elev_cat_temp <- leaf_litter_temp %>%
+            filter(elevCat == which_elev) %>%
+            group_by(jday) %>%
+            summarise(tmean = mean(tmean)) 
+          }
+        temp_pred <- tibble(
+          julian = 1:365,
+          larva_frac = larval_quest(elev_cat_temp$tmean[1:365], params_mean)$qst_norm,
+          elevCat = which_elev)
+        model_pred<- rbind(model_pred,temp_pred)
+      }
+
+  #  mean_mod_pred <- model_pred %>%
+   #   group_by(julian) %>%
+    #  summarise( larva_frac=mean(larva_frac) ) %>%
+     # mutate(elevCat = 'mean')
+    
+   # model_pred <- rbind(model_pred,mean_mod_pred)
+    
+    }
+  
+  
+  
+  
   model_comp1 <- function(peak, k, tickNum, day, pheno_mod)
   {
     pheno_mod <- peak/max(pheno_mod) * pheno_mod
-    pred_larva <- pheno_mod[day]
+    pred_larva <- pheno_mod[day] + 0.001
     nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
-    #nll <- -sum(dpois(x = tickNum, lambda = pred_larva, log = TRUE))
     return(nll )
   }
   
   
+  model_comp2 <- function(mid_mult, high_mult, peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k_low, k_mid, k_high, day, tickNum, elevCat)
+  {
+    peak_e <- ifelse(elevCat == 'low', peak_e, ifelse(elevCat == 'mid', peak_e*mid_mult, peak_e*high_mult))
+    peak_l <- ifelse(elevCat == 'low', peak_l, ifelse(elevCat == 'mid', peak_l*mid_mult, peak_l*high_mult))
+    k <- ifelse(elevCat == 'low', k_low, ifelse(elevCat == 'mid', k_mid, k_high))
+    if (peak_e > 0 & tau_e > 70 & tau_e < 200 & mu_e > 0 & mu_e < 75 & peak_l > 0 & tau_l > tau_e + mu_e & tau_l < 275 & mu_l > 0 & sigma_l > 0.1 & sigma_l < 1.5)
+    {
+      expectedNum<- peak_e * exp(-0.5* ((day-tau_e)/mu_e)^2 ) + ifelse(day<=tau_l,0, peak_l * exp(-0.5 * (log((day-tau_l)/mu_l)/sigma_l)^2 ))
+      nll <- -sum(dnbinom(x = tickNum, mu = expectedNum, size = k, log = TRUE))
+    } else
+    {
+      nll <- 99999999
+    }
+    return(nll )
+  }
+  
+
   fits1 <- list()
   tot_like1 <- 0
   fits2 <- list()
@@ -680,16 +749,13 @@ set.seed(31417)
       filter(elevCat == which_cat) %>%
       select(day = julian, tickNum = larva, elevCat = elevCat) %>%
       as.list()
-    data_list2 <- samples %>% 
-      filter(elevCat == which_cat) %>%
-      select(day = julian, tickNum = larva, elevCat = elevCat) %>%
-      as.list()
+    data_list2 <- data_list1
     
-    pheno_pred1 <- mean_vals %>%
+    pheno_pred1 <- model_pred %>%
       filter(elevCat == 'mean') %>%
       pull(larva_frac)
     
-    pheno_pred2 <- mean_vals %>%
+    pheno_pred2 <- model_pred %>%
       filter(elevCat == which_cat) %>%
       pull(larva_frac)
     
@@ -697,55 +763,32 @@ set.seed(31417)
     data_list1[['pheno_mod']] <- pheno_pred1
     data_list2[['pheno_mod']] <- pheno_pred2
     
-    start_param <- list(peak = ifelse(which_cat=='low',50,ifelse(which_cat=='mid',30,4)), k = 0.15)
-    
-    fits1[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list1) 
+    start_param <- list(peak = ifelse(which_cat=='low',295,ifelse(which_cat=='high',4,30)), k = 0.14)
+
+        
+     fits1[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list1) 
     fits2[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list2) 
-    tot_like1 <- tot_like1 + as.numeric(logLik(fits1[[which_cat]]))
+     tot_like1 <- tot_like1 + as.numeric(logLik(fits1[[which_cat]]))
     tot_like2 <- tot_like2 + as.numeric(logLik(fits2[[which_cat]]))
   }
   
+  data_list <- samples %>% 
+    select(day = julian, tickNum = larva, elevCat = elevCat) %>%
+    as.list()
+  
+  param_guess <- list(peak_e=50, mid_mult=0.5, high_mult=0.1, tau_e=160, mu_e=20, peak_l=50, tau_l=180, mu_l=50, sigma_l=0.2,k_low=0.2,k_mid=0.2,k_high=0.02)
+  
+  fit_phenomological <- mle2(model_comp2, start = param_guess, data = data_list)
   
   
-
-  #### Compare predictions
-  
-  mean_pred <- mean_vals %>%
-    filter(elevCat == 'mean') %>%
-    pull(larva_frac)
-  
-  low_pred <- mean_vals %>%
-    filter(elevCat == 'low') %>%
-    pull(larva_frac)
-  
-  mid_pred <- mean_vals %>%
-    filter(elevCat == 'mid') %>%
-    pull(larva_frac)
-  
-  high_pred <- mean_vals %>%
-    filter(elevCat == 'high') %>%
-    pull(larva_frac)
-  
-  pred_tibble <- 
-    tibble(julian = rep(1:365,6),
-           elevCat = c(rep('low',365),rep('mid',365),rep('high',365),rep('low',365),rep('mid',365),rep('high',365)),
-           larva = c(coef(fits1[['low']])['peak']*mean_pred/max(mean_pred),
-                     coef(fits1[['mid']])['peak']*mean_pred/max(mean_pred),
-                     coef(fits1[['high']])['peak']*mean_pred/max(mean_pred),
-                     coef(fits2[['low']])['peak']*low_pred/max(low_pred),
-                     coef(fits2[['mid']])['peak']*mid_pred/max(mid_pred),
-                     coef(fits2[['high']])['peak']*high_pred/max(high_pred)),
-           mod_type = c(rep('mean_val',365*3),rep('elev_val',365*3))
-                        )
-  
-  
-  samples %>%
-    ggplot(aes(julian,larva)) +
-    geom_point() +
-    stat_smooth(se=F) +
-    facet_wrap(~elevCat, scale = 'free_y') +
-    geom_path(data = pred_tibble, aes(linetype = mod_type))
-  
-  
-  
+  AIC_full <- -tot_like2 + 2*6 + (2*6^2 + 2*6)/(length(data_list$day) - 6 - 1)
+  AIC_mean <- -tot_like1 + 2*6 + (2*6^2 + 2*6)/(length(data_list$day) - 6 - 1)
+  AIC_phenomological <- -as.numeric(logLik(fit_phenomological)) + 2*12 + (2*12^2 + 2*12)/(length(data_list$day) - 12 - 1)
 }
+
+
+lowsub <- samples %>% filter(elevCat=='low')
+myspline <- smooth.spline(lowsub$larva ~ lowsub$julian)
+pred <- predict(myspline,1:365)
+plot(lowsub$julian, lowsub$larva)
+lines(pred$x[100:300],pred$y[100:300])
