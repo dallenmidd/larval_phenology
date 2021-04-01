@@ -787,8 +787,26 @@ set.seed(31417)
 }
 
 
+library(mgcv)
 lowsub <- samples %>% filter(elevCat=='low')
-myspline <- smooth.spline(lowsub$larva ~ lowsub$julian)
-pred <- predict(myspline,1:365)
-plot(lowsub$julian, lowsub$larva)
-lines(pred$x[100:300],pred$y[100:300])
+myspline <- smooth.spline(lowsub$larva ~ lowsub$julian, spar = 0.65)
+myspline <- gam(larva ~ s(julian, sp = 0.005), data = lowsub )
+mylo <- loess(larva ~ julian, data = lowsub, span = 0.5)
+
+pred <- predict(mylo,newdata = data.frame(julian = 1:365),se = T )
+plot(lowsub$julian, lowsub$larva, ylim=c(0,100))
+lines(100:300,pred[100:300])
+
+fuck <- unname(pred[['se.fit']])
+
+predlow <- tibble(julian = 1:365, 
+                  pred = unname(pred[['fit']]),
+                  se = fuck )
+  
+predlow %>%
+  filter(!is.na(pred)) %>%
+  filter(pred > max(pred) - se) %>%
+  summarise(min(julian), max(julian))
+  
+
+
