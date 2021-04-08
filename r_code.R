@@ -754,8 +754,8 @@ set.seed(31417)
         
     mechanistic_mean_fit[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list1) 
     mechanistic_full_fit[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list2) 
-    mechanistic_mean_lik <- mechanistic_mean_lik + as.numeric(logLik(fits1[[which_cat]]))
-    mechanistic_full_lik <- mechanistic_full_lik + as.numeric(logLik(fits2[[which_cat]]))
+    mechanistic_mean_lik <- mechanistic_mean_lik + as.numeric(logLik(mechanistic_mean_fit[[which_cat]]))
+    mechanistic_full_lik <- mechanistic_full_lik + as.numeric(logLik(mechanistic_full_fit[[which_cat]]))
   }
   
   data_list <- samples %>% 
@@ -769,7 +769,7 @@ set.seed(31417)
   
   AIC_full <- -tot_like2 + 2*6 + (2*6^2 + 2*6)/(length(data_list$day) - 6 - 1)
   AIC_mean <- -tot_like1 + 2*6 + (2*6^2 + 2*6)/(length(data_list$day) - 6 - 1)
-  AIC_phenomological <- -as.numeric(logLik(fit_phenomological)) + 2*12 + (2*12^2 + 2*12)/(length(data_list$day) - 12 - 1)
+  AIC_phenomological <- -as.numeric(logLik(phenomological_fit)) + 2*12 + (2*12^2 + 2*12)/(length(data_list$day) - 12 - 1)
 }
 
 
@@ -794,7 +794,7 @@ set.seed(31417)
     pull(larva_frac)
   
  
- fit1 <- fit_phenomological   
+ fit1 <- phenomological_fit   
     
   predicted_larvae <- 
     tibble(julian = rep(1:365,9),
@@ -855,18 +855,14 @@ set.seed(31417)
              late_larva = ifelse(julian< day_mid, 0, larva) ) %>%
       group_by(mod_type, elevCat) %>%
       summarise(frac_early = sum(early_larva)/sum(early_larva+late_larva))
+  
     
     library(mgcv)
-      
-    smoothed_obs_low_loess <- loess(larva ~ julian, data = samples %>% filter(elevCat == 'low'))
-    smoothed_obs_mid_loess <- loess(larva ~ julian, data = samples %>% filter(elevCat == 'mid'))
-    smoothed_obs_high_loess <- loess(larva ~ julian, data = samples %>% filter(elevCat == 'high'))
     
     smoothed_obs_low_gam <- gam(larva ~ s(julian, sp = 0.001), data = samples %>% filter(elevCat == 'low'), family = negbin(theta = 0.1))
     smoothed_obs_mid_gam <- gam(larva ~ s(julian, sp = 0.001), data = samples %>% filter(elevCat == 'mid'), family = negbin(theta = 0.1))
     smoothed_obs_high_gam <- gam(larva ~ s(julian, sp = 0.001), data = samples %>% filter(elevCat == 'high'), family = negbin(theta = 0.1))
-    
-    
+  
     smoothed_obs_low <- predict(smoothed_obs_low_gam, newdata = data.frame(julian = 1:365), type = 'response')
     smoothed_obs_mid <- predict(smoothed_obs_mid_gam, newdata = data.frame(julian = 1:365), type = 'response')
     smoothed_obs_high <- predict(smoothed_obs_high_gam, newdata = data.frame(julian = 1:365), type = 'response')
