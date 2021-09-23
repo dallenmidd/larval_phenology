@@ -1,7 +1,7 @@
 # Analysis Code for 
 # "A mechanistic model explains variation in larval  
 # tick questing phenology along an elevation gradient"
-# Submitted Apr 2021
+# Submitted ____????
 
 require(tidyverse)
 require(bbmle)
@@ -651,6 +651,7 @@ set.seed(31417)
 {
   samples <- read_csv('data/drag_sampling.csv') %>% 
     mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high'))) 
+
   
   # Run model on mean param
   {
@@ -658,10 +659,10 @@ set.seed(31417)
     params_mean <- list(
       ovi_m = 187,
       ovi_sd = 50,
-      ecl_m = 534,
+      ecl_m = 533,
       ecl_sd = 28,
       diapause = 0.5,
-      hardening = 21,
+      hardening = 14, #### change here based on leal et al citaiton of 1-7d hardening
       start_quest = 10,
       max_quest = 25,
       host_find = 0.02, 
@@ -695,19 +696,16 @@ set.seed(31417)
       }
     }
   
-  
-  
-  
-  model_comp1 <- function(peak, k, tickNum, day, phenology_pred)
+
+  mechanistic_nll_fun <- function(low_mult, mid_mult, high_mult, k_low, k_mid, k_high, tickNum, day, phenology_pred)
   {
-    pheno_mod <- peak/max(phenology_pred) * phenology_pred
-    pred_larva <- pheno_mod[day] + 0.001
+    pred_larva <- ifelse(elevCat == 'low',low_mult, ifelse(elevCat == 'mid', mid_mult, high_mult)) * phenology_pred + 0.001
+    k <- ifelse(elevCat == 'low', k_low, ifelse(elevCat == 'mid', k_mid, k_high))
     nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
     return(nll )
   }
   
-  
-  model_comp2 <- function(mid_mult, high_mult, peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k_low, k_mid, k_high, day, tickNum, elevCat)
+  phenomological_nll_fun <- function(mid_mult, high_mult, peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k_low, k_mid, k_high, day, tickNum, elevCat)
   {
     peak_e <- ifelse(elevCat == 'low', peak_e, ifelse(elevCat == 'mid', peak_e*mid_mult, peak_e*high_mult))
     peak_l <- ifelse(elevCat == 'low', peak_l, ifelse(elevCat == 'mid', peak_l*mid_mult, peak_l*high_mult))
@@ -723,53 +721,29 @@ set.seed(31417)
     return(nll )
   }
   
-
-  mechanistic_mean_fit <- list()
-  mechanistic_mean_lik <- 0
-  mechanistic_full_fit <- list()
-  mechanistic_full_lik <- 0
-  
-  for (which_cat in c('low', 'mid', 'high'))
-  {
-    data_list1 <- samples %>% 
-      filter(elevCat == which_cat) %>%
-      select(day = julian, tickNum = larva, elevCat = elevCat) %>%
-      as.list()
-    data_list2 <- data_list1
-    
-    phenology_pred1 <- mech_model_pred %>%
-      filter(elevCat == 'mean') %>%
-      pull(larva_frac)
-    
-    phenology_pred2 <- mech_model_pred %>%
-      filter(elevCat == which_cat) %>%
-      pull(larva_frac)
-    
-    
-    data_list1[['phenology_pred']] <- phenology_pred1
-    data_list2[['phenology_pred']] <- phenology_pred2
-    
-    start_param <- list(peak = ifelse(which_cat=='low',295,ifelse(which_cat=='high',4,30)), k = 0.14)
-
-        
-    mechanistic_mean_fit[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list1) 
-    mechanistic_full_fit[[which_cat]] <- mle2(model_comp1, start=start_param, data=data_list2) 
-    mechanistic_mean_lik <- mechanistic_mean_lik + as.numeric(logLik(mechanistic_mean_fit[[which_cat]]))
-    mechanistic_full_lik <- mechanistic_full_lik + as.numeric(logLik(mechanistic_full_fit[[which_cat]]))
-  }
-  
-  data_list <- samples %>% 
+  data_list_mech_full <- samples %>%
+    left_join(mech_model_pred, by = c('elevCat', 'julian')) %>%
+    select(day = julian, tickNum = larva, elevCat, phenology_pred = larva_frac) %>%
+    as.list()
+  data_list_mech_mean<- samples %>%
+    left_join(mech_model_pred %>% filter(elevCat == 'mean'), by = 'julian') %>%
+    select(day = julian, tickNum = larva, elevCat = elevCat.x, phenology_pred = larva_frac) %>%
+    as.list()
+  data_list_phenomological <- samples %>% 
     select(day = julian, tickNum = larva, elevCat = elevCat) %>%
     as.list()
   
-  param_guess <- list(peak_e=50, mid_mult=0.5, high_mult=0.1, tau_e=160, mu_e=20, peak_l=50, tau_l=180, mu_l=50, sigma_l=0.2,k_low=0.2,k_mid=0.2,k_high=0.02)
+  guess_param_mech <- list(low_mult = 9500, mid_mult = 2000, high_mult = 50, k_low = 0.11, k_mid = 0.095, k_high = 0.02)
+  guess_param_phenomological <- list(peak_e=35, mid_mult=0.54, high_mult=0.05, tau_e=160, mu_e=20, peak_l=100, tau_l=180, mu_l=50, sigma_l=0.2,k_low=0.2,k_mid=0.2,k_high=0.02)
   
-  phenomological_fit <- mle2(model_comp2, start = param_guess, data = data_list)
+  mechanistic_full_fit <- mle2(mechanistic_nll_fun, start=guess_param_mech, data=data_list_mech_full) 
+  mechanistic_mean_fit <- mle2(mechanistic_nll_fun, start=guess_param_mech, data=data_list_mech_mean) 
+  phenomological_fit <- mle2(phenomological_nll_fun, start = guess_param_phenomological, data = data_list_phenomological)
   
   
-  AIC_full <- -tot_like2 + 2*6 + (2*6^2 + 2*6)/(length(data_list$day) - 6 - 1)
-  AIC_mean <- -tot_like1 + 2*6 + (2*6^2 + 2*6)/(length(data_list$day) - 6 - 1)
-  AIC_phenomological <- -as.numeric(logLik(phenomological_fit)) + 2*12 + (2*12^2 + 2*12)/(length(data_list$day) - 12 - 1)
+  AIC_full <- -as.numeric(logLik(mechanistic_full_fit)) + 2*6 + (2*6^2 + 2*6)/(length(data_list_mech_full$day) - 6 - 1)
+  AIC_mean <- -as.numeric(logLik(mechanistic_mean_fit)) + 2*6 + (2*6^2 + 2*6)/(length(data_list_mech_mean$day) - 6 - 1)
+  AIC_phenomological <- -as.numeric(logLik(phenomological_fit)) + 2*12 + (2*12^2 + 2*12)/(length(data_list_phenomological$day) - 12 - 1)
 }
 
 
@@ -799,12 +773,12 @@ set.seed(31417)
   predicted_larvae <- 
     tibble(julian = rep(1:365,9),
            elevCat = rep(c(rep('low',365),rep('mid',365),rep('high',365)),3),
-           larva = c(coef(mechanistic_mean_fit[['low']])['peak']*mean_pred/max(mean_pred),
-                     coef(mechanistic_mean_fit[['mid']])['peak']*mean_pred/max(mean_pred),
-                     coef(mechanistic_mean_fit[['high']])['peak']*mean_pred/max(mean_pred),
-                     coef(mechanistic_full_fit[['low']])['peak']*low_pred/max(low_pred),
-                     coef(mechanistic_full_fit[['mid']])['peak']*mid_pred/max(mid_pred),
-                     coef(mechanistic_full_fit[['high']])['peak']*high_pred/max(high_pred),
+           larva = c(coef(mechanistic_mean_fit)['low_mult']*mean_pred,
+                     coef(mechanistic_mean_fit)['mid_mult']*mean_pred,
+                     coef(mechanistic_mean_fit)['high_mult']*mean_pred,
+                     coef(mechanistic_full_fit)['low_mult']*low_pred,
+                     coef(mechanistic_full_fit)['mid_mult']*mid_pred,
+                     coef(mechanistic_full_fit)['high_mult']*high_pred,
                      twoPeakCurve(1:365),
                      coef(phenomological_fit)['mid_mult']*twoPeakCurve(1:365),
                      coef(phenomological_fit)['high_mult']*twoPeakCurve(1:365)),
@@ -819,25 +793,6 @@ set.seed(31417)
         mod_type = c(rep('mechanistic_mean',length(samples$julian)),rep('mechanistic_full',length(samples$julian)),rep('phenomological',length(samples$julian)))
       ) %>%
       mutate(elevCat = factor(elevCat, levels = c('low', 'mid', 'high')))
-
-    smooth_expanded <-tibble(
-      julian = rep(smoothed_larvae$julian,3),
-      larva = rep(smoothed_larvae$larva,3),
-      elevCat = rep(smoothed_larvae$elevCat,3),
-      mod_type = c(rep('mechanistic_mean',length(smoothed_larvae$julian)),rep('mechanistic_full',length(smoothed_larvae$julian)),rep('phenomological',length(smoothed_larvae$julian)))
-    ) %>%
-      mutate(elevCat = factor(elevCat, levels = c('low', 'mid', 'high')))   
-  
-    predicted_larvae%>%
-      ggplot(aes(julian,larva)) +
-      geom_path() +
-      #geom_smooth(data = samples_expanded,se = F) +
-      geom_path(data= smooth_expanded, col = 'red') +
-      facet_grid(elevCat ~ mod_type, scales = 'free_y') +
-      coord_cartesian(xlim=c(100,300))
-
-
-    
     
     
     # summaries for predictions
@@ -886,32 +841,28 @@ set.seed(31417)
       group_by(elevCat) %>%
       summarise(frac_early = sum(early_larva)/sum(early_larva+late_larva))
     
+    
+    smooth_expanded <-tibble(
+      julian = rep(smoothed_larvae$julian,3),
+      larva = rep(smoothed_larvae$larva,3),
+      elevCat = rep(smoothed_larvae$elevCat,3),
+      mod_type = c(rep('mechanistic_mean',length(smoothed_larvae$julian)),rep('mechanistic_full',length(smoothed_larvae$julian)),rep('phenomological',length(smoothed_larvae$julian)))
+    ) %>%
+      mutate(elevCat = factor(elevCat, levels = c('low', 'mid', 'high')))   
+    
+    smooth_expanded%>%
+      ggplot(aes(julian,larva)) +
+      geom_path() +
+      #geom_smooth(data = samples_expanded,se = F) +
+      geom_path(data= predicted_larvae, lty = 2) +
+      facet_grid(elevCat ~ mod_type, scales = 'free_y') +
+      coord_cartesian(xlim=c(100,300))
+    
+    
 }
 
 
 
 
-
-library(mgcv)
-lowsub <- samples %>% filter(elevCat=='low')
-myspline <- smooth.spline(lowsub$larva ~ lowsub$julian, spar = 0.65)
-myspline <- gam(larva ~ s(julian, sp = 0.005), data = lowsub )
-mylo <- loess(larva ~ julian, data = lowsub, span = 0.5)
-
-pred <- predict(mylo,newdata = data.frame(julian = 1:365),se = T )
-plot(lowsub$julian, lowsub$larva, ylim=c(0,100))
-lines(100:300,pred[100:300])
-
-fuck <- unname(pred[['se.fit']])
-
-predlow <- tibble(julian = 1:365, 
-                  pred = unname(pred[['fit']]),
-                  se = fuck )
-  
-predlow %>%
-  filter(!is.na(pred)) %>%
-  filter(pred > max(pred) - se) %>%
-  summarise(min(julian), max(julian))
-  
 
 
