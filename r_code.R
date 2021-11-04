@@ -415,6 +415,19 @@ set.seed(31417)
 
 
 
+#### # HERE ### # ## # # # # ###
+#### # HERE ### # ## # # # # ###
+#### # HERE ### # ## # # # # ###
+#### # HERE ### # ## # # # # ###
+#### # HERE ### # ## # # # # ###
+#### # HERE ### # ## # # # # ###
+
+
+
+
+
+
+
 
 # This code fits the two-peak phenology curves to data from each elevation category
 # Also gets confidence intervals around each parameter
