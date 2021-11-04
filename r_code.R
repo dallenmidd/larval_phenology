@@ -40,6 +40,20 @@ set.seed(31417)
     peak_e * exp(-0.5* ((x-tau_e)/mu_e)^2 ) + ifelse(x<=tau_l,0, peak_l * exp(-0.5 * (log((x-tau_l)/mu_l)/sigma_l)^2 ))
   }
   
+  fit_phenology_nll_fun <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
+  {
+    expectedNum<- peak_e * exp(-0.5* ((day-tau_e)/mu_e)^2 ) + ifelse(day<=tau_l,0, peak_l * exp(-0.5 * (log((day-tau_l)/mu_l)/sigma_l)^2 ))
+    nll <- -sum(dnbinom(x = tickNum, mu = expectedNum, size = k, log = TRUE))
+    return(nll )
+  }
+  
+  given_phenology_nll_fun <- function(peak_mult, k, tickNum, day, phenology_pred)
+  {
+    pred_larva <- peak_mult * phenology_pred + 0.001
+    nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
+    return(nll )
+  }
+  
   # This function is used to find confidence intervals around fit parameters
   paramRangeTwoPeak<- function(fit, param, dataList = dataList)
   {
@@ -80,6 +94,327 @@ set.seed(31417)
   }
   
 }
+
+# Define the mechanistic model and specify its parameters
+# Then get mechanistic model predictions 
+# Both averaged across all sites and for each site
+# Input: data/leaf_litter_temp.csv
+# Output: results/mech_pheno.csv
+{
+  # Parameters for model, See table 1
+  params_mean <- list(
+    ovi_m = 187,
+    ovi_sd = 50,
+    ecl_m = 533,
+    ecl_sd = 28,
+    diapause = 0.5,
+    hardening = 14, 
+    start_quest = 10,
+    max_quest = 25,
+    host_find = 0.02, 
+    mort = 0.0099, 
+    overwinter_surv = 0.45
+  )
+  
+  # takes in daily average temp at leaf litter and parameters
+  # outputs fraction of larvae oviposited, ecolosed, questing on each day
+  # See figure A1 for flow diagram
+  larval_quest <- function(tmean, params)
+  {
+    tot_day <- length(tmean)
+    dd6 <- cumsum(ifelse(tmean > 6, tmean - 6, 0))
+    # fraction of cohort oviposited on each day
+    ovi <- pnorm(dd6, params$ovi_m, params$ovi_sd) - pnorm(lag(dd6, n = 1, default = 0), params$ovi_m, params$ovi_sd)             
+    
+    # fraction of cohort eclosed on each day
+    ecl <- rep(0, tot_day)
+    for (i in 1:(tot_day-1))
+    {
+      i1 <- i+1
+      dd11 <- c(rep(0,i),cumsum(ifelse(tmean[i1:tot_day]>11,tmean[i1:tot_day]-11,0)))
+      # ecl_temp is prob of ecolsion on each day if oviposition is on day i
+      ecl_prob <- pnorm(dd11,params$ecl_m,params$ecl_sd) - pnorm(lag(dd11,n=1,default = 0),params$ecl_m,params$ecl_sd)
+      ecl <- ecl + ovi[i] * ecl_prob
+    }
+    
+    sum_sol <- 172 # julian day of summer solstice
+    # without diapause fraction of ticks becoming active each day 
+    # this takes into account hardening period
+    act_prediapause <- lag(ecl, params$hardening, 0) 
+    # no ticks eclosing before summer solstice enter diapause
+    # fraction of them ecolsing afterwards do (Ogden et al. 2018)
+    diapause_frac_daily <- c(rep(0, sum_sol + params$hardening), rep(params$diapause, tot_day - (sum_sol + params$hardening)))
+    # fraction of cohort starting activity on each day
+    start_act <- (1 - diapause_frac_daily) * act_prediapause
+    # fraction of cohort that enters diapause after ecolosion
+    diapause_frac_total <- sum(diapause_frac_daily*act_prediapause)
+    
+    # this section calculates the fraction of cohort questing on each day
+    questing <- rep(0, tot_day)
+    #here by 'winter' means when temperature drop below the min temp for larvae to quest
+    days_to_winter <- min(which(tmean<params$start_quest)[which(tmean<params$start_quest) > sum_sol]) 
+    active <- 0 # tracks number of active ticks
+    
+    # fraction of ticks active that will quest based on temp 
+    quest_slope <- 1/(params$max_quest-params$start_quest)
+    f_quest <- ifelse(tmean < params$max_quest, 
+                      quest_slope*(tmean-params$start_quest),
+                      -quest_slope*(tmean-params$max_quest) + 1 )
+    f_quest <- ifelse(f_quest>1,1,ifelse(f_quest<0,0,f_quest))
+    
+    # now actually calculate the questing ticks each day
+    for (i in 1:days_to_winter)
+    {
+      # add number becoming active on day i to active pool
+      active <- active + start_act[i] 
+      # fraction questing on day i 
+      questing[i] <- active * f_quest[i]
+      # remove ticks from active cohort if they find a host or die
+      active <- (1 - params$host_find * f_quest[i] - params$mort) * active
+    }
+    # fraction of the cohort which survives overwinters
+    # overwinter survival times three groups: still active at end of questing season; those starting activity after questing season; those that entered diapause earlier
+    larvae_overwinter <- params$overwinter_surv * (active + sum(start_act[(days_to_winter+1):tot_day]) + diapause_frac_total)
+    
+    # add overwintered larvae to questing vector
+    # these are early-summer questing ticks
+    for (i in 1:days_to_winter)
+    {
+      questing[i] <- questing[i] + larvae_overwinter * f_quest[i]
+      larvae_overwinter <- (1 - params$host_find * f_quest[i] - params$mort) * larvae_overwinter
+    }
+    
+    output_tibble <- tibble(
+      ovi = ovi, # fraction of cohort oviposited each day
+      ecl = ecl, # fraction of cohort eclosed each day
+      qst = questing, # fraction of cohort questing each day (sums > 1 since most ticks quest on more than one day)
+      qst_norm = questing/sum(questing) # fraction of questing larvae on a given day, for comparison to real data
+    )
+    
+    return(output_tibble)
+  }
+  
+  samples <- read_csv('data/drag_sampling.csv')  
+  leaf_litter_temp <- read_csv('data/leaf_litter_temp.csv')
+  
+  mech_model_pred <- tibble(
+    julian = numeric(),
+    larva_frac = numeric(),
+    site = character())
+  
+  #filter two sites that never had any larvae
+  mysites <- samples %>% 
+    filter(site != 'Snowbowl', site != 'Crystal') %>%
+    pull(site) %>% 
+    unique()  
+  
+  for (which_site in c(mysites, 'mean'))
+  {
+    if (which_site == 'mean') {
+      elev_cat_temp <- leaf_litter_temp %>%
+        group_by(jday) %>%
+        summarise(tmean = mean(tmean))
+    } else {
+      elev_cat_temp <- leaf_litter_temp %>%
+        filter(site == which_site) %>%
+        group_by(jday) %>%
+        summarise(tmean = mean(tmean)) 
+    }
+    temp_pred <- tibble(
+      julian = 1:365,
+      larva_frac = larval_quest(elev_cat_temp$tmean[1:365], params_mean)$qst_norm,
+      site = which_site)
+    mech_model_pred<- rbind(mech_model_pred,temp_pred)
+  }
+  
+  write_csv(mech_model_pred, file = 'results/mech_pheno.csv')
+}
+
+# Compare the four models
+# Inputs: data/drag_sampling.csv, results/mech_pheno.csv
+# Output: results/model_fits.RData, results/full_model_pred.csv
+{
+  samples <- read_csv('data/drag_sampling.csv')  
+  
+  ## Parameter starting points for mle2 search
+  {
+    param_guess_ph <- list()
+    param_guess_ph[['Foote']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
+    param_guess_ph[['Chipman']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
+    param_guess_ph[['Major']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
+    param_guess_ph[['Lourie']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
+    
+    param_guess_ph[['Chipman2']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+    param_guess_ph[['Gorge']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+    param_guess_ph[['BRF']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+    
+    param_guess_ph[['BRF2']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
+    param_guess_ph[['Frost']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
+    param_guess_ph[['SPIN']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
+    param_guess_ph[['Gilmore']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
+    
+    param_guess_ph[['mean']] <- list(peak_e = 10, tau_e = 135, mu_e = 20, peak_l = 30, tau_l = 200, mu_l = 50, sigma_l =0.2, k = 0.1)
+    
+    param_guess_me <- list()
+    param_guess_me[['Foote']] <- list(peak_mult=5000, k = 0.1)
+    param_guess_me[['Chipman']] <- list(peak_mult=5000, k = 0.1)
+    param_guess_me[['Major']] <- list(peak_mult=5000, k = 0.1)
+    param_guess_me[['Lourie']] <- list(peak_mult=5000, k = 0.1)
+    
+    param_guess_me[['Chipman2']] <- list(peak_mult=750, k = 0.08)
+    param_guess_me[['Gorge']] <- list(peak_mult=750, k = 0.08)
+    param_guess_me[['BRF']] <- list(peak_mult=750, k = 0.08)
+    
+    param_guess_me[['BRF2']] <- list(peak_mult=50, k = 0.02)
+    param_guess_me[['Frost']] <- list(peak_mult=50, k = 0.02) 
+    param_guess_me[['SPIN']] <- list(peak_mult=50, k = 0.02)
+    param_guess_me[['Gilmore']] <- list(peak_mult=50, k = 0.02) 
+    
+    make_parscale <- function(x)
+    {
+      my_parscale <- x
+      for (i in 1:length(x)) my_parscale[[i]] <- x[[i]]/x[[1]]
+      unlist(my_parscale)
+    }
+  }
+  
+  ## fit a single phenomological phenology across all sites 
+  {
+    data_list <- samples %>% 
+      select(day = julian, tickNum = larva) %>%
+      as.list()
+    
+    my_parscale <- make_parscale(param_guess_ph[['mean']])
+    fit1 <- mle2(fit_phenology_nll_fun, start=param_guess_ph[['mean']], data=data_list, method='BFGS', control = list(parscale = my_parscale))
+    
+    phenomological_mean_pred <- tibble(
+      julian = 1:365,
+      pred_larva = twoPeakCurve(1:365)/sum(twoPeakCurve(1:365))
+    )
+  }
+  
+  # now compare the four models
+  {
+    all_mod_pred <- tibble(
+      julian = numeric(),
+      larva = numeric(),
+      site = character(),
+      mod_type = character()
+    )
+    
+    phenomological_site_nll <- 0
+    phenomological_mean_nll <- 0
+    mechanistic_site_nll <- 0
+    mechanistic_mean_nll <- 0
+    
+    fitList<-list()
+    mech_model_pred <- read_csv('results/mech_pheno.csv')
+  
+    # loop through the sites and fit each model for each site
+    # the mean-level models do not fit a phenology at each site
+    # but just the height of the peaks
+    for (which_site in mysites)
+    {
+      
+      # site-level phenomological fits
+      {
+        data_list <- samples %>% 
+          filter(site == which_site) %>%
+          select(day = julian, tickNum = larva) %>%
+          as.list()
+        
+        my_parscale <- make_parscale(param_guess_ph[[which_site]])
+        fit1 <- mle2(twoPeak, start=param_guess_ph[[which_site]], data=data_list,method='BFGS')
+        fitList[['phenom_site']][[which_site]] <- fit1
+        
+        phenomological_site_nll <- phenomological_site_nll - as.numeric(logLik(fit1))
+        temp_pred <- tibble(julian = 1:365, larva = twoPeakCurve(1:365), site = which_site, mod_type = 'Site phenomological')
+        all_mod_pred <- bind_rows(all_mod_pred, temp_pred)
+      }
+      
+      # mean-level phenomological fits
+      {
+        data_list <- samples %>%
+          filter(site == which_site) %>%
+          left_join(phenomological_mean_pred, by = 'julian') %>%
+          select(day = julian, tickNum = larva, phenology_pred = pred_larva) %>%
+          as.list()
+        
+        my_parscale <- make_parscale(param_guess_me[[which_site]])
+        fit1 <- mle2(given_phenology_nll_fun, start=param_guess_me[[which_site]], data=data_list, method='BFGS', control = list(parscale = my_parscale) )    
+        fitList[['phenom_mean']][[which_site]] <- fit1
+        
+        phenomological_mean_nll <- phenomological_mean_nll - as.numeric(logLik(fit1))  
+        temp_pred <- tibble(julian = 1:365, larva = unname(coef(fit1)['peak_mult']) * phenomological_mean_pred$pred_larva, site = which_site, mod_type = 'Mean phenomological')
+        all_mod_pred <- bind_rows(all_mod_pred, temp_pred)
+        
+      }
+      
+      # site-level mechanistic fits
+      {
+        data_list <- samples %>%
+          filter(site == which_site) %>%
+          left_join(mech_model_pred, by = c('site', 'julian')) %>%
+          select(day = julian, tickNum = larva, phenology_pred = larva_frac) %>%
+          as.list()
+        
+        my_parscale <- make_parscale(param_guess_me[[which_site]])
+        fit1 <- mle2(given_phenology_nll_fun, start=param_guess_me[[which_site]], data=data_list, method='BFGS', control = list(parscale = my_parscale) )    
+        fitList[['mech_site']][[which_site]] <- fit1
+        
+        mechanistic_site_nll <- mechanistic_site_nll - as.numeric(logLik(fit1))    
+
+        this_site_pheno <- mech_model_pred %>%
+          filter(site == which_site) %>%
+          pull(larva_frac)
+        
+        temp_pred <- tibble(julian = 1:365, larva = unname(coef(fit1)['peak_mult']) * this_site_pheno, site = which_site, mod_type = 'Site mechanistic')
+        all_mod_pred <- bind_rows(all_mod_pred, temp_pred)
+      }
+      
+      # mean-level mechanistic fits
+      {
+        mean_mech_model_pred <- mech_model_pred %>% filter(site == 'mean')
+        
+        data_list <- samples %>%
+          filter(site == which_site) %>%
+          left_join(mean_mech_model_pred, by =  'julian') %>%
+          select(day = julian, tickNum = larva, phenology_pred = larva_frac) %>%
+          as.list()
+        
+        fit1 <- mle2(given_phenology_nll_fun, 
+                     start=param_guess_me[[which_site]], 
+                     data=data_list, method='BFGS', 
+                     control = list(parscale = c(peak_mult = param_guess_me[[which_site]]$peak_mult/param_guess_me[[which_site]]$k, k = 1) ) )
+        fitList[['mech_mean']][[which_site]] <- fit1
+        
+        mechanistic_mean_nll <- mechanistic_mean_nll - as.numeric(logLik(fit1))    
+
+        mean_pheno_just_nums <- mean_mech_model_pred %>%
+          pull(larva_frac)
+        
+        temp_pred <- tibble(julian = 1:365, larva = unname(coef(fit1)['peak_mult']) * mean_pheno_just_nums, site = which_site, mod_type = 'Mean mechanistic')
+        all_mod_pred <- bind_rows(all_mod_pred, temp_pred)
+      }
+      
+      
+    }  
+  
+  }
+  
+  
+  phenomological_site_aic <- phenomological_site_nll + 2*8*length(mysites)
+  phenomological_mean_aic <- phenomological_mean_nll + 2*6 + 2*2*length(mysites)
+  mechanistic_site_aic <- mechanistic_site_nll + 2*2*length(mysites)
+  mechanistic_mean_aic <- mechanistic_mean_nll + 2*2*length(mysites)
+  
+  save(fitList, file = "results/model_fits.RData")
+  write_csv(all_mod_pred, file = 'results/full_model_pred.csv')
+}
+
+
+
+
 
 # This code fits the two-peak phenology curves to data from each elevation category
 # Also gets confidence intervals around each parameter
@@ -177,122 +512,6 @@ set.seed(31417)
   save(pheno_smooth, file = 'results/many_fits.RData')
 }
 
-# Larval questing phenology model and parameters
-# doesn't do anything on its own, 
-# but defines required functions for the next section
-{
-  # Paramters for model, See table 1
-  params_with_CI <- list(
-    ovi_m = c(132,243),
-    ovi_sd = c(37,63),
-    ecl_m = c(429,638),
-    ecl_sd = c(6,71),
-    diapause = c(0.25,0.75),
-    hardening = c(14,28),
-    start_quest = c(5, 15),
-    max_quest = c(20, 30),
-    host_find = c(0.004,0.1),
-    mort = c(0.007,0.014),
-    overwinter_surv = c(0.1,0.8)
-  )
-  
-  # Function to uniformly generate parameters
-  rand_param <- function(p)
-  {
-    toreturn <- list(
-      ovi_m = runif(1,p$ovi_m[1],p$ovi_m[2]),
-      ovi_sd = runif(1,p$ovi_sd[1],p$ovi_sd[2]),
-      ecl_m = runif(1,p$ecl_m[1],p$ecl_m[2]),
-      ecl_sd = runif(1,p$ecl_sd[1],p$ecl_sd[2]),
-      diapause = runif(1,p$diapause[1],p$diapause[2]),
-      hardening = round(runif(1,p$hardening[1],p$hardening[2])),
-      max_quest = runif(1,p$max_quest[1],p$max_quest[2]),
-      start_quest = runif(1,p$start_quest[1],p$start_quest[2]),
-      host_find = runif(1,p$host_find[1],p$host_find[2]),
-      mort = runif(1,p$mort[1],p$mort[2]),
-      overwinter_surv = runif(1,p$overwinter_surv[1],p$overwinter_surv[2])
-    )
-    toreturn
-  }
-  
-  # takes in daily average temp at leaf litter and parameters
-  # outputs fraction of larvae oviposited, ecolosed, questing on each day
-  # See figure A1 for flow diagram
-  larval_quest <- function(tmean, params)
-  {
-    tot_day <- length(tmean)
-    dd6 <- cumsum(ifelse(tmean > 6, tmean - 6, 0))
-    # fraction of cohort oviposited on each day
-    ovi <- pnorm(dd6, params$ovi_m, params$ovi_sd) - pnorm(lag(dd6, n = 1, default = 0), params$ovi_m, params$ovi_sd)             
-    
-    # fraction of cohort eclosed on each day
-    ecl <- rep(0, tot_day)
-    for (i in 1:(tot_day-1))
-    {
-      i1 <- i+1
-      dd11 <- c(rep(0,i),cumsum(ifelse(tmean[i1:tot_day]>11,tmean[i1:tot_day]-11,0)))
-      # ecl_temp is prob of ecolsion on each day if oviposition is on day i
-      ecl_prob <- pnorm(dd11,params$ecl_m,params$ecl_sd) - pnorm(lag(dd11,n=1,default = 0),params$ecl_m,params$ecl_sd)
-      ecl <- ecl + ovi[i] * ecl_prob
-    }
-    
-    sum_sol <- 172 # julian day of summer solstice
-    # without diapause fraction of ticks becoming active each day 
-    # this takes into account hardening period
-    act_prediapause <- lag(ecl, params$hardening, 0) 
-    # no ticks eclosing before summer solstice enter diapause
-    # fraction of them ecolsing afterwards do (Ogden et al. 2018)
-    diapause_frac_daily <- c(rep(0, sum_sol + params$hardening), rep(params$diapause, tot_day - (sum_sol + params$hardening)))
-    # fraction of cohort starting activity on each day
-    start_act <- (1 - diapause_frac_daily) * act_prediapause
-    # fraction of cohort that enters diapause after ecolosion
-    diapause_frac_total <- sum(diapause_frac_daily*act_prediapause)
-    
-    # this section calculates the fraction of cohort questing on each day
-    questing <- rep(0, tot_day)
-    #here by 'winter' means when temperature drop below the min temp for larvae to quest
-    days_to_winter <- min(which(tmean<params$start_quest)[which(tmean<params$start_quest) > sum_sol]) 
-    active <- 0 # tracks number of active ticks
-    
-    # fraction of ticks active that will quest based on temp 
-    quest_slope <- 1/(params$max_quest-params$start_quest)
-    f_quest <- ifelse(tmean < params$max_quest, 
-                      quest_slope*(tmean-params$start_quest),
-                      -quest_slope*(tmean-params$max_quest) + 1 )
-    f_quest <- ifelse(f_quest>1,1,ifelse(f_quest<0,0,f_quest))
-    
-    # now actually calculate the questing ticks each day
-    for (i in 1:days_to_winter)
-    {
-      # add number becoming active on day i to active pool
-      active <- active + start_act[i] 
-      # fraction questing on day i 
-      questing[i] <- active * f_quest[i]
-      # remove ticks from active cohort if they find a host or die
-      active <- (1 - params$host_find * f_quest[i] - params$mort) * active
-    }
-    # fraction of the cohort which survives overwinters
-    # overwinter survival times three groups: still active at end of questing season; those starting activity after questing season; those that entered diapause earlier
-    larvae_overwinter <- params$overwinter_surv * (active + sum(start_act[(days_to_winter+1):tot_day]) + diapause_frac_total)
-    
-    # add overwintered larvae to questing vector
-    # these are early-summer questing ticks
-    for (i in 1:days_to_winter)
-    {
-      questing[i] <- questing[i] + larvae_overwinter * f_quest[i]
-      larvae_overwinter <- (1 - params$host_find * f_quest[i] - params$mort) * larvae_overwinter
-    }
-    
-    output_tibble <- tibble(
-      ovi = ovi, # fraction of cohort oviposited each day
-      ecl = ecl, # fraction of cohort eclosed each day
-      qst = questing, # fraction of cohort questing each day (sums > 1 since most ticks quest on more than one day)
-      qst_norm = questing/sum(questing) # fraction of questing larvae on a given day, for comparison to real data
-    )
-    
-    return(output_tibble)
-  }
-}
 
 # This code generates 500 runs of the phenology model for each
 # elevation category. It requires the code block above
