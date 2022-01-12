@@ -7,6 +7,7 @@ require(tidyverse)
 require(bbmle)
 require(cowplot)
 require(lubridate)
+library(mgcv)
 set.seed(31417)
 
 # Define functions for the two-peak phenology curve
@@ -397,6 +398,20 @@ set.seed(31417)
         all_mod_pred <- bind_rows(all_mod_pred, temp_pred)
       }
       
+      #smoothed 
+      {
+        smoothed_pheno <- samples %>%
+          filter(site == which_site) %>%
+          gam(larva~ s(julian, sp = 0.005), family = nb(), data = .)
+        temp_pred <- tibble(
+          julian = 1:365, 
+          larva = predict(smoothed_pheno, newdata = data.frame(julian = 1:365), type = 'response'),
+          site = which_site, 
+          mod_type = 'Smoothed'
+        )
+        all_mod_pred <- bind_rows(all_mod_pred, temp_pred)
+      }
+      
       
     }  
   
@@ -413,7 +428,17 @@ set.seed(31417)
 }
 
 
-
+all_mod_pred %>% 
+  mutate(mean_or_not = ifelse(str_detect(mod_type, "Mean"),'Y', 'N')) %>%
+  ggplot(aes(julian, larva, color = mod_type, lty = mean_or_not)) + 
+  geom_line() + 
+  facet_wrap(~site, scales = 'free_y') +
+  scale_color_manual(values = c("Site phenomological" = 'red', 
+                                "Mean phenomological" = 'red',
+                                'Site mechanistic' = 'blue',
+                                'Mean mechanistic' = 'blue',
+                                'Smoothed' = 'black')) +
+  xlim(c(100,300))
 
 #### # HERE ### # ## # # # # ###
 #### # HERE ### # ## # # # # ###
