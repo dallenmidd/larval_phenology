@@ -251,7 +251,7 @@ set.seed(31417)
     param_guess_ph[['Major']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
     param_guess_ph[['Lourie']] <- list(peak_e=30, tau_e=160, mu_e=20, peak_l=70, tau_l=200, mu_l=20, sigma_l=0.1,k=0.2)
     
-    param_guess_ph[['Chipman2']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
+    param_guess_ph[['UpperChipman']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
     param_guess_ph[['Gorge']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
     param_guess_ph[['BRF']] <- list(peak_e=25, tau_e=135, mu_e=35, peak_l=5, tau_l=200, mu_l=60, sigma_l=0.1,k=0.2)
     
@@ -260,7 +260,7 @@ set.seed(31417)
     param_guess_ph[['SPIN']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
     param_guess_ph[['Gilmore']] <- list(peak_e=7, tau_e=170, mu_e=11.5, peak_l=0.03, tau_l=203, mu_l=50, sigma_l=1.5,k=0.03) 
     
-    param_guess_ph[['mean']] <- list(peak_e = 10, tau_e = 135, mu_e = 20, peak_l = 30, tau_l = 200, mu_l = 50, sigma_l =0.2, k = 0.1)
+    param_guess_ph[['mean']] <- list(peak_e = 10, tau_e = 150, mu_e = 15, peak_l = 27, tau_l = 200, mu_l = 50, sigma_l =0.2, k = 0.1)
     
     param_guess_me <- list()
     param_guess_me[['Foote']] <- list(peak_mult=5000, k = 0.1)
@@ -268,7 +268,7 @@ set.seed(31417)
     param_guess_me[['Major']] <- list(peak_mult=5000, k = 0.1)
     param_guess_me[['Lourie']] <- list(peak_mult=5000, k = 0.1)
     
-    param_guess_me[['Chipman2']] <- list(peak_mult=750, k = 0.08)
+    param_guess_me[['UpperChipman']] <- list(peak_mult=750, k = 0.08)
     param_guess_me[['Gorge']] <- list(peak_mult=750, k = 0.08)
     param_guess_me[['BRF']] <- list(peak_mult=750, k = 0.08)
     
@@ -408,7 +408,7 @@ set.seed(31417)
       {
         smoothed_pheno <- samples %>%
           filter(site == which_site) %>%
-          gam(larva~ s(julian, sp = 0.005), family = nb(), data = .)
+          gam(larva~ s(julian, sp = 0.001), family = nb(), data = .)
         temp_pred <- tibble(
           julian = 1:365, 
           larva = predict(smoothed_pheno, newdata = data.frame(julian = 1:365), type = 'response'),
@@ -435,7 +435,19 @@ set.seed(31417)
 
 
 all_mod_pred %>% 
-  mutate(mean_or_not = ifelse(str_detect(mod_type, "Mean"),'Y', 'N')) %>%
+  filter(julian >100, julian < 300) %>%
+  mutate(mean_or_not = ifelse(str_detect(mod_type, "Mean"),'Y', 'N'),
+         site = factor(site, levels = c('Lourie',
+                                        'Major',
+                                        'Foote',
+                                        'Chipman',
+                                        'UpperChipman',
+                                        'Gorge',
+                                        'BRF',
+                                        'BRF2',
+                                        'SPIN',
+                                        'Frost',
+                                        'Gilmore')) ) %>%
   ggplot(aes(julian, larva, color = mod_type, lty = mean_or_not)) + 
   geom_line() + 
   facet_wrap(~site, scales = 'free_y') +
@@ -726,6 +738,34 @@ dev.off()
   
 
   
+
+
+
+
+
+
+
+#########
+# Oct 20
+
+
+ch_samples <- samples %>%
+  mutate(yr = year(date),
+         cohort_yr = ifelse(julian>200,yr,yr+1),
+         cohort_jl = ifelse(julian>200,julian,200+julian),
+         elev_cat = cut(elev,breaks = c(0,200,410,1000),labels=c('low','mid','high'))) %>%
+  filter(cohort_yr>2016.5, cohort_yr < 2021.5) 
+
+
+ch_samples %>%
+  ggplot(aes(cohort_jl,larva)) +
+  geom_smooth(se = F) +
+  geom_point() +
+  facet_grid(rows = vars(elev_cat), cols = vars(cohort_yr),scales = 'free_y')
+  
+
+
+
 
 
 
