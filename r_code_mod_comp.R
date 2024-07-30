@@ -3,8 +3,6 @@
 # tick questing phenology along an elevation gradient"
 # Submitted ____????
 
-### !!! could add another larval mortality # JME = tjad150 in paperstoread/lyme
-
 require(tidyverse)
 require(bbmle)
 require(cowplot)
@@ -16,8 +14,6 @@ set.seed(31417)
 {
   samples <- read_csv('data/drag_sampling.csv')  
   samples %>% summarise(n(), median(larva), mean(larva), sd(larva) )
-  samples %>% mutate(elevCat = cut(elev,c(0,200,400,1000),c('low','mid','high'))) %>% count(elevCat)
-  samples %>% count(site)
 }
 
 # Define functions for the two-peak phenology curve
@@ -65,45 +61,6 @@ set.seed(31417)
     return(nll )
   }
   
-  # This function is used to find confidence intervals around fit parameters
-  paramRangeTwoPeak<- function(fit, param, dataList = dataList)
-  {
-    paramNames <- names(coef(fit))
-    paramBest <- coef(fit)[param]
-    startParam <- as.list(coef(fit))
-    
-    paramValsHigh <- c(paramBest)
-    newFit <- fit
-    nllsHigh <- c(-logLik(newFit) )
-    while(max(nllsHigh) < (min(nllsHigh) + qchisq(p=0.95,df=1)/2) )
-    {
-      paramValsHigh <- c(paramValsHigh,max(paramValsHigh) + paramBest/100 )
-      fixedList <- list( )
-      fixedList[[param]] <- max(paramValsHigh)
-      newStart <- as.list(coef(newFit))
-      newFit <- mle2(twoPeak,start=newStart, data=dataList, method = 'BFGS', fixed=fixedList)
-      nllsHigh <- c(nllsHigh, -logLik(newFit))
-      
-      
-    }
-    paramValsLow <- c(paramBest)
-    newFit <- fit
-    nllsLow <- c(-logLik(newFit) )
-    while(max(nllsLow) < (min(nllsLow) + qchisq(p=0.95,df=1)/2) )
-    {
-      paramValsLow <- c(paramValsLow,min(paramValsLow) - paramBest/100 )
-      fixedList <- list( )
-      fixedList[[param]] <- min(paramValsLow)
-      newStart <- as.list(coef(newFit))
-      newFit <- mle2(twoPeak,start=newStart, data=dataList, method = 'BFGS', fixed=fixedList)
-      nllsLow <- c(nllsLow, -logLik(newFit))
-      
-    }
-    
-    return(c(unname(paramBest),range(paramValsHigh,paramValsLow))) 
-    
-  }
-  
 }
 
 # Define the mechanistic model and specify its parameters
@@ -114,17 +71,17 @@ set.seed(31417)
 {
   # Parameters for model, See table 1
   params_mean <- list(
-    ovi_m = 187,
-    ovi_sd = 50,
-    ecl_m = 533,
-    ecl_sd = 28,
+    ovi_m = 188,
+    ovi_sd = 50.1,
+    ecl_m = 532.1,
+    ecl_sd = 38.5,
     diapause = 0.5,
     hardening = 7, 
     start_quest = 10,
     max_quest = 25,
     host_find = 0.02, 
     mort = 0.01, 
-    overwinter_surv = 0.435
+    overwinter_surv = 0.45
   )
   
   # takes in daily average temp at leaf litter and parameters
@@ -242,10 +199,67 @@ set.seed(31417)
   write_csv(mech_model_pred, file = 'results/mech_pheno.csv')
 }
 
+## Make a figure showing the example phenomenologoical model with parameters
+## Output: figures/phenomenological_example.pdf
+{
+  peak_e_example <- 30
+  tau_e_example <- 140
+  mu_e_example <- 20
+  peak_l_example <- 60
+  tau_l_example <- 210
+  mu_l_example <- 20
+  sigma_l_example <- 0.5
+  
+  pheno_example_data <- tibble(
+    day = 50:300,
+    larvae = peak_e_example * exp(-0.5* ((day-tau_e_example)/mu_e_example)^2 ) + ifelse(day<=tau_l_example,0, peak_l_example * exp(-0.5 * (log((day-tau_l_example)/mu_l_example)/sigma_l_example)^2 ))
+  )
+  
+  pdf('figures/phenomenological_example.pdf',width=7.25,height=3)
+  
+  pheno_example_data %>%
+    ggplot(aes(day,larvae)) +
+    geom_line() +
+    theme_classic() +
+    theme(axis.ticks = element_blank(),
+          axis.text = element_blank()) +
+    xlab('Julian day') +
+    ylab('Questing larvae') +
+    annotate('segment', 
+             x=50, xend = tau_e_example,
+             y=peak_e_example+1, yend=peak_e_example+1, 
+             arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
+    annotate('text',x=(50+tau_e_example)/2,y=peak_e_example+3,label=expression(tau['e'])) +
+    annotate('segment',
+             x = tau_e_example, xend = tau_e_example, 
+             y = 0, yend = peak_e_example,
+             arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
+    annotate('text',x=tau_e_example+4,y=peak_e_example/2,label=expression('H'['e'])) +
+    annotate('text',x=tau_e_example,y=peak_e_example+6,label=expression(paste("Shape parameter ",sigma['e']))) +
+    annotate('segment', 
+             x=50, xend = tau_l_example,
+             y=peak_l_example+1, yend=peak_l_example+1, 
+             arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
+    annotate('text',x=(50+tau_l_example)/2,y=peak_l_example+3,label=expression(tau['l'])) +
+    annotate('segment', 
+             x=tau_l_example, xend = tau_l_example+mu_l_example,
+             y=peak_l_example+1, yend=peak_l_example+1, 
+             arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
+    annotate('text',x=(2*tau_l_example+mu_l_example)/2,y=peak_l_example+4,label=expression(mu['l'])) +
+    annotate('segment',
+             x = tau_l_example+mu_l_example, xend = tau_l_example+mu_l_example, 
+             y = 0, yend = peak_l_example,
+             arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
+    annotate('text',x=tau_l_example+mu_l_example+3,y=peak_l_example/2,label=expression('H'['l'])) +
+    annotate('text',x=tau_l_example+mu_l_example+37,y=peak_l_example*0.75,label=expression(paste("Shape parameter ",sigma['l'])))
+  
+  
+  dev.off()
+}
 
-# Compare the three models
+# Compare the four models
 # Inputs: data/drag_sampling.csv, results/mech_pheno.csv
-# Output: results/model_fits.RData, results/full_model_pred.csv
+# Outputs: results/model_fits.RData, results/full_model_pred.csv
 {
   samples <- read_csv('data/drag_sampling.csv')  
   
@@ -447,7 +461,7 @@ set.seed(31417)
   
   }
   
-  
+
   phenomological_site_aic <- phenomological_site_nll + 2*8*length(mysites)
   phenomological_mean_aic <- phenomological_mean_nll + 2*6 + 2*2*length(mysites)
   mechanistic_site_aic <- mechanistic_site_nll + 2*2*length(mysites)
@@ -457,90 +471,118 @@ set.seed(31417)
   write_csv(x = all_mod_pred, file = 'results/full_model_pred.csv')
 }
 
+## Make result figure 1
+## Inputs: data/drag_sampling.csv and results/full_model_pred.csv
+## Output: figures/pheno_bysite.pdf
+{
+  samples <- read_csv('data/drag_sampling.csv')  
+  all_mod_pred <- read_csv('results/full_model_pred.csv')
+  # remove site without any larvae 
+  samplesMod <- samples %>%
+    filter(site != 'Crystal') 
 
-samplesMod <- samples %>%
-  filter(site != 'Crystal') %>%
-  mutate(site = factor(site, levels = c('Lourie',
-                                        'Jackson',
-                                        'Major',
-                                        'Foote',
-                                        'Chipman',
-                                        'UpperChipman',
-                                        'Gorge',
-                                        'BRF',
-                                        'SPIN',
-                                        'Frost',
-                                        'Gilmore',
-                                        'Snowbowl')) )
+  
+  yaxis <- expression(paste("Larvae (per 200 ", m^2, " sample)"))
+    
+  p1 <- all_mod_pred %>% 
+    filter(julian >100, julian < 300) %>%
+    filter(mod_type %in% c('Site mechanistic', 'Smoothed')) %>%
+    mutate(site = factor(site, levels = c('Lourie',
+                                          'Jackson',
+                                          'Major',
+                                          'Foote',
+                                          'Chipman',
+                                          'UpperChipman',
+                                          'Gorge',
+                                          'BRF',
+                                          'SPIN',
+                                          'Frost',
+                                          'Gilmore',
+                                          'Snowbowl')) ) %>%
+    ggplot(aes(julian, larva, linetype = mod_type)) + 
+    geom_line() + 
+    facet_wrap(~site, scales = 'free_y') +
+    scale_linetype_manual(values = c( 'Site mechanistic' = 2,'Smoothed' = 1)) +
+    scale_x_continuous(limits = c(100,300),
+                       breaks =c(121,  182, 244),
+                       labels=c('May 1', 'Jul 1','Sep 1')) +
+    labs(x = '', y = yaxis) +
+    theme_bw() +
+    theme(legend.position="none")
+  
+  
+  
+  pdf('figures/pheno_bysite.pdf',width=7,height=8)  
+   p1
+  dev.off()
+}
 
-all_mod_pred %>% 
-  filter(julian >100, julian < 300) %>%
-  mutate(mean_or_not = ifelse(str_detect(mod_type, "Mean"),'Y', 'N'),
-         site = factor(site, levels = c('Lourie',
-                                        'Jackson',
-                                        'Major',
-                                        'Foote',
-                                        'Chipman',
-                                        'UpperChipman',
-                                        'Gorge',
-                                        'BRF',
-                                        'SPIN',
-                                        'Frost',
-                                        'Gilmore',
-                                        'Snowbowl')) ) %>%
-  ggplot(aes(julian, larva, color = mod_type)) + 
-  geom_line() + 
-  facet_wrap(~site, scales = 'free_y') +
-  scale_color_manual(values = c("Site phenomological" = 'red', 
-                                "Mean phenomological" = 'red4',
-                                'Site mechanistic' = 'blue',
-                                'Mean mechanistic' = 'blue4',
-                                'Smoothed' = 'black')) +
-  xlim(c(100,300)) 
-
-
-
-### fraction in early
-
-switch_date <- all_mod_pred %>%
-  group_by(site,mod_type) %>%
-  mutate(delta = larva - lag(larva),
-         inc = ifelse(delta > 0, 1,-1),
-         crit = ifelse(inc*lag(inc) < 0, 'Yes', 'No' ),
-         crit = ifelse(lag(larva)==0 | is.na(crit),'No', crit),
-         crit_type = ifelse(inc <0, 'Peak', 'Valley')) %>%
-  filter(crit == 'Yes', crit_type == 'Valley') %>%
-  summarise(julian = max(julian)) %>% ## sometimes two valleys but the second is always the real one
-  ungroup() %>%
-  select(site, mod_type, switch_jul = julian)
+## Calculate fraction of larvae questing in early v late
+## Both observed and predicted.
+## Inputs: results/full_model_pred.csv
+## Output: figures/early_v_late.pdf
+{
+  all_mod_pred <- read_csv('results/full_model_pred.csv')
+  
+  switch_date <- all_mod_pred %>%
+    group_by(site,mod_type) %>%
+    mutate(delta = larva - lag(larva),
+           inc = ifelse(delta > 0, 1,-1),
+           crit = ifelse(inc*lag(inc) < 0, 'Yes', 'No' ),
+           crit = ifelse(lag(larva)==0 | is.na(crit),'No', crit),
+           crit_type = ifelse(inc <0, 'Peak', 'Valley')) %>%
+    filter(crit == 'Yes', crit_type == 'Valley') %>%
+    summarise(julian = max(julian)) %>% ## sometimes two valleys but the second is always the real one
+    ungroup() %>%
+    select(site, mod_type, switch_jul = julian)
   
 
+  
+  summary_data <- all_mod_pred %>%
+    left_join(switch_date, by = c('site', 'mod_type')) %>%
+    mutate(e_l = ifelse(julian <= switch_jul, 'early', 'late'),
+           e_l = ifelse(is.na(e_l), 'early', e_l)) %>% #corrects for runs that don't have a late peak
+    group_by(site, mod_type, e_l) %>%
+    summarise(
+      when = julian[which.max(larva)],
+      larva = sum(larva) ) %>%
+    pivot_wider(names_from = 'e_l', values_from = c('when', 'larva'), values_fill = 0) # fill in with 0 if no late peak rather than NA
+  
+  
+  summary_data <- summary_data %>% mutate(late_frac = larva_late/(larva_late+larva_early) )
+  
+  siteelev <- samples %>%
+    group_by(site) %>%
+    summarise(elev = mean(elev))
+  
+  
+  summary_data %>%
+    filter(mod_type %in% c('Smoothed', 'Site mechanistic')) %>%
+    mutate(mod_type = ifelse(mod_type=="Smoothed",'Obs','Mod')) %>%
+    select(site,mod_type, late_frac) %>%
+    pivot_wider(names_from = mod_type, values_from = late_frac) %>%
+    left_join(siteelev) %>%
+    ggplot() +
+    geom_segment(aes(x=elev, xend = elev, y=Obs, yend=Mod), arrow = arrow(length = unit(0.02,'npc'))) +
+    geom_point(aes(x=elev, y = Obs)) +
+    geom_point(aes(x=elev, y = Mod), pch = 1)
+  
+  
+  p2 <- summary_data %>%
+    select(-when_early, -when_late, -larva_early, -larva_late) %>%
+    pivot_wider(names_from = mod_type, values_from = late_frac) %>%
+    ggplot(aes(Smoothed, `Site mechanistic`)) +
+    geom_point() +
+    geom_smooth(method = 'lm', se = F, lty = 2, color = 'black') +
+    coord_cartesian(xlim=c(0,1), ylim = c(0,1)) +
+    geom_line(data = tibble(Smoothed = c(0,1), `Site mechanistic`= c(0,1))) +
+    theme_bw() +
+    labs(x = 'Observed late-summer fraction', y = 'Predicted late-summer fraction')
+  
+  
+  pdf('figures/early_v_late.pdf',width=4,height=4)  
+    p2
+  dev.off()
+  
+}
 
-summary_data <- all_mod_pred %>%
-  left_join(switch_date, by = c('site', 'mod_type')) %>%
-  mutate(e_l = ifelse(julian <= switch_jul, 'early', 'late'),
-         e_l = ifelse(is.na(e_l), 'early', e_l)) %>% #corrects for runs that don't have a late peak
-  group_by(site, mod_type, e_l) %>%
-  summarise(
-    when = julian[which.max(larva)],
-    larva = sum(larva) ) %>%
-  pivot_wider(names_from = 'e_l', values_from = c('when', 'larva'), values_fill = 0) # fill in with 0 if no late peak rather than NA
-
-
-summary_data <- summary_data %>% mutate(late_frac = larva_late/(larva_late+larva_early) )
-
-siteelev <- samples %>%
-  group_by(site) %>%
-  summarise(elev = mean(elev))
-
-
-summary_data %>%
-  filter(mod_type %in% c('Smoothed', 'Site mechanistic')) %>%
-  mutate(mod_type = ifelse(mod_type=="Smoothed",'Obs','Mod')) %>%
-  select(site,mod_type, late_frac) %>%
-  pivot_wider(names_from = mod_type, values_from = late_frac) %>%
-  left_join(siteelev) %>%
-  ggplot() +
-  geom_segment(aes(x=elev, xend = elev, y=Obs, yend=Mod), arrow = arrow(length = unit(0.02,'npc'))) +
-  geom_point(aes(x=elev, y = Obs)) +
-  geom_point(aes(x=elev, y = Mod), pch = 1)
