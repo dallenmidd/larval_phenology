@@ -449,7 +449,7 @@ set.seed(31417)
           gam(larva~ s(julian, sp = 0.001), family = nb(), data = .)
         temp_pred <- tibble(
           julian = 1:365, 
-          larva = predict(smoothed_pheno, newdata = data.frame(julian = 1:365), type = 'response'),
+          larva = as.vector(predict(smoothed_pheno, newdata = data.frame(julian = 1:365), type = 'response')),
           site = which_site, 
           mod_type = 'Smoothed'
         )
@@ -471,37 +471,27 @@ set.seed(31417)
   write_csv(x = all_mod_pred, file = 'results/full_model_pred.csv')
 }
 
-## Make result figure 1
+## Make first results figure
 ## Inputs: data/drag_sampling.csv and results/full_model_pred.csv
 ## Output: figures/pheno_bysite.pdf
 {
+  ## relabel sites by elevation rather than site name
   samples <- read_csv('data/drag_sampling.csv')  
-  all_mod_pred <- read_csv('results/full_model_pred.csv')
-  # remove site without any larvae 
-  samplesMod <- samples %>%
-    filter(site != 'Crystal') 
+  siteelev <- samples %>%
+    group_by(site) %>%
+    summarise(elev = mean(elev)) %>% 
+    ungroup()
+  all_mod_pred <- read_csv('results/full_model_pred.csv') %>%
+    left_join(siteelev,by='site') %>%
+    mutate(elevlabel = paste(elev,' m'))
 
-  
   yaxis <- expression(paste("Larvae (per 200 ", m^2, " sample)"))
-    
   p1 <- all_mod_pred %>% 
     filter(julian >100, julian < 300) %>%
     filter(mod_type %in% c('Site mechanistic', 'Smoothed')) %>%
-    mutate(site = factor(site, levels = c('Lourie',
-                                          'Jackson',
-                                          'Major',
-                                          'Foote',
-                                          'Chipman',
-                                          'UpperChipman',
-                                          'Gorge',
-                                          'BRF',
-                                          'SPIN',
-                                          'Frost',
-                                          'Gilmore',
-                                          'Snowbowl')) ) %>%
     ggplot(aes(julian, larva, linetype = mod_type)) + 
     geom_line() + 
-    facet_wrap(~site, scales = 'free_y') +
+    facet_wrap(~elevlabel, scales = 'free_y') +
     scale_linetype_manual(values = c( 'Site mechanistic' = 2,'Smoothed' = 1)) +
     scale_x_continuous(limits = c(100,300),
                        breaks =c(121,  182, 244),
@@ -509,9 +499,6 @@ set.seed(31417)
     labs(x = '', y = yaxis) +
     theme_bw() +
     theme(legend.position="none")
-  
-  
-  
   pdf('figures/pheno_bysite.pdf',width=7,height=8)  
    p1
   dev.off()
@@ -519,6 +506,7 @@ set.seed(31417)
 
 ## Calculate fraction of larvae questing in early v late
 ## Both observed and predicted.
+## Second results figure
 ## Inputs: results/full_model_pred.csv
 ## Output: figures/early_v_late.pdf
 {
