@@ -6,61 +6,12 @@
 require(tidyverse)
 require(bbmle)
 require(cowplot)
-require(lubridate)
 library(mgcv)
-set.seed(31417)
 
 # Descriptive stats in results
 {
   samples <- read_csv('data/drag_sampling.csv')  
   samples %>% summarise(n(), median(larva), mean(larva), sd(larva) )
-}
-
-# Define functions for the two-peak phenology curve
-# doesn't do anything on its own but these functions 
-# are necessary for the next two sections to run
-{
-  # this one takes in parameters and data and outputs the negative log likelihood of observing those data with provided parameters
-  twoPeak <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
-  {
-    if (peak_e > 0 & tau_e > 70 & tau_e < 200 & mu_e > 0 & mu_e < 75 & peak_l > 0 & tau_l > tau_e + mu_e & tau_l < 275 & mu_l > 0 & sigma_l > 0.1 & sigma_l < 1.5)
-    {
-      expectedNum<- peak_e * exp(-0.5* ((day-tau_e)/mu_e)^2 ) + ifelse(day<=tau_l,0, peak_l * exp(-0.5 * (log((day-tau_l)/mu_l)/sigma_l)^2 ))
-      nll <- -sum(dnbinom(x = tickNum, mu = expectedNum, size = k, log = TRUE))
-    } else
-    {
-      nll <- 99999999
-    }
-    return(nll )
-  }
-  
-  # this curve takes in the day and paramters and gives the number of larvae 
-  twoPeakCurve <- function(x,
-                           peak_e = coef(fit1)['peak_e'], 
-                           tau_e = coef(fit1)['tau_e'], 
-                           mu_e = coef(fit1)['mu_e'], 
-                           peak_l = coef(fit1)['peak_l'], 
-                           tau_l = coef(fit1)['tau_l'], 
-                           mu_l = coef(fit1)['mu_l'], 
-                           sigma_l = coef(fit1)['sigma_l'])
-  {
-    peak_e * exp(-0.5* ((x-tau_e)/mu_e)^2 ) + ifelse(x<=tau_l,0, peak_l * exp(-0.5 * (log((x-tau_l)/mu_l)/sigma_l)^2 ))
-  }
-  
-  fit_phenology_nll_fun <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
-  {
-    expectedNum<- peak_e * exp(-0.5* ((day-tau_e)/mu_e)^2 ) + ifelse(day<=tau_l,0, peak_l * exp(-0.5 * (log((day-tau_l)/mu_l)/sigma_l)^2 ))
-    nll <- -sum(dnbinom(x = tickNum, mu = expectedNum, size = k, log = TRUE))
-    return(nll )
-  }
-  
-  given_phenology_nll_fun <- function(peak_mult, k, tickNum, day, phenology_pred)
-  {
-    pred_larva <- peak_mult * phenology_pred + 0.001
-    nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
-    return(nll )
-  }
-  
 }
 
 # Define the mechanistic model and specify its parameters
@@ -199,7 +150,53 @@ set.seed(31417)
   write_csv(mech_model_pred, file = 'results/mech_pheno.csv')
 }
 
-## Make a figure showing the example phenomenologoical model with parameters
+# Define functions for the phenomenological model
+# and other functions for maximum likelihood fitting
+{
+  # this one takes in parameters and data and outputs the negative log likelihood of observing those data with provided parameters
+  twoPeak <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
+  {
+    if (peak_e > 0 & tau_e > 70 & tau_e < 200 & mu_e > 0 & mu_e < 75 & peak_l > 0 & tau_l > tau_e + mu_e & tau_l < 275 & mu_l > 0 & sigma_l > 0.1 & sigma_l < 1.5)
+    {
+      expectedNum<- peak_e * exp(-0.5* ((day-tau_e)/mu_e)^2 ) + ifelse(day<=tau_l,0, peak_l * exp(-0.5 * (log((day-tau_l)/mu_l)/sigma_l)^2 ))
+      nll <- -sum(dnbinom(x = tickNum, mu = expectedNum, size = k, log = TRUE))
+    } else
+    {
+      nll <- 99999999
+    }
+    return(nll )
+  }
+  
+  # this curve takes in the day and parameters and gives the number of larvae 
+  twoPeakCurve <- function(x,
+                           peak_e = coef(fit1)['peak_e'], 
+                           tau_e = coef(fit1)['tau_e'], 
+                           mu_e = coef(fit1)['mu_e'], 
+                           peak_l = coef(fit1)['peak_l'], 
+                           tau_l = coef(fit1)['tau_l'], 
+                           mu_l = coef(fit1)['mu_l'], 
+                           sigma_l = coef(fit1)['sigma_l'])
+  {
+    peak_e * exp(-0.5* ((x-tau_e)/mu_e)^2 ) + ifelse(x<=tau_l,0, peak_l * exp(-0.5 * (log((x-tau_l)/mu_l)/sigma_l)^2 ))
+  }
+  
+  fit_phenology_nll_fun <- function(peak_e, tau_e, mu_e, peak_l, tau_l, mu_l, sigma_l, k, day, tickNum)
+  {
+    expectedNum<- peak_e * exp(-0.5* ((day-tau_e)/mu_e)^2 ) + ifelse(day<=tau_l,0, peak_l * exp(-0.5 * (log((day-tau_l)/mu_l)/sigma_l)^2 ))
+    nll <- -sum(dnbinom(x = tickNum, mu = expectedNum, size = k, log = TRUE))
+    return(nll )
+  }
+  
+  given_phenology_nll_fun <- function(peak_mult, k, tickNum, day, phenology_pred)
+  {
+    pred_larva <- peak_mult * phenology_pred + 0.001
+    nll <- -sum(dnbinom(x = tickNum, mu = pred_larva, size = k, log =TRUE))
+    return(nll )
+  }
+  
+}
+
+## Make a figure showing the example phenomenological model with parameters
 ## Output: figures/phenomenological_example.pdf
 {
   peak_e_example <- 30
@@ -461,11 +458,16 @@ set.seed(31417)
   
   }
   
+  
+  phenomological_site_n_param <- 8*length(mysites) ## seven for phenom model plus dispersion (=8) for each site
+  phenomological_mean_n_param <- 7 + 2*length(mysites) ## seven for single phenom model plus max and dispersion for each site
+  mechanistic_site_n_param <- 2*length(mysites) ## max and dispersion for each site
+  mechanistic_mean_n_param <- 2*length(mysites) ## max and dispersion for each site
 
-  phenomological_site_aic <- phenomological_site_nll + 2*8*length(mysites)
-  phenomological_mean_aic <- phenomological_mean_nll + 2*6 + 2*2*length(mysites)
-  mechanistic_site_aic <- mechanistic_site_nll + 2*2*length(mysites)
-  mechanistic_mean_aic <- mechanistic_mean_nll + 2*2*length(mysites)
+  phenomological_site_aic <- phenomological_site_nll + 2*phenomological_site_n_param
+  phenomological_mean_aic <- phenomological_mean_nll + 2*phenomological_mean_n_param
+  mechanistic_site_aic <- mechanistic_site_nll + 2*mechanistic_site_n_param
+  mechanistic_mean_aic <- mechanistic_mean_nll + 2*mechanistic_mean_n_param
   
   save(fitList, file = "results/model_fits.RData")
   write_csv(x = all_mod_pred, file = 'results/full_model_pred.csv')
