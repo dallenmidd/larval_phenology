@@ -12,6 +12,22 @@ library(mgcv)
 {
   samples <- read_csv('data/drag_sampling.csv')  
   samples %>% summarise(n(), median(larva), mean(larva), sd(larva) )
+  
+  samples %>%
+    mutate(year = year(date)) %>%
+    count(site, year) %>%
+    summarise(mean(n), sd(n))
+  
+  samples %>% filter(site %in% c("Snowbowl", "Gilmore"), larva >0) 
+  
+  samples %>%
+    filter(elev < 200) %>%
+    mutate(year = year(date), el = ifelse(julian>213,'late','early')) %>%
+    group_by(year,el) %>%
+    summarise(n=sum(larva)) %>%
+    pivot_wider(names_from = el, values_from = n)
+    
+  
 }
 
 # Define the mechanistic model and specify its parameters
@@ -22,6 +38,10 @@ library(mgcv)
 {
   # Parameters for model, See table 1
   params_mean <- list(
+    adult_start_quest = 3,
+    adult_max_quest = 8,
+    adult_host_find = 0.04,
+    adult_mort = 0.006,
     ovi_m = 188,
     ovi_sd = 50.1,
     ecl_m = 532.1,
@@ -41,10 +61,49 @@ library(mgcv)
   larval_quest <- function(tmean, params)
   {
     tot_day <- length(tmean)
-    dd6 <- cumsum(ifelse(tmean > 6, tmean - 6, 0))
-    # fraction of cohort oviposited on each day
-    ovi <- pnorm(dd6, params$ovi_m, params$ovi_sd) - pnorm(lag(dd6, n = 1, default = 0), params$ovi_m, params$ovi_sd)             
     
+    # fraction of adults that are engroged on each day
+    adult_questing_start_day <- 213 # Aug 1 first day possible (but will be too hot)
+    adult_questing_end_day <- 182 # july 1
+    adult_days <- c(adult_questing_start_day:tot_day,1:tot_day) # adults start questing on Oct 1 and then continue to the next year
+    adult_engorged_long <- numeric(length(adult_days))
+  
+    adult_active <- 1 # start the total fractino of adults
+    
+    # fraction of ticks active that will quest based on temp 
+    adult_quest_slope <- 1/(params$adult_max_quest-params$adult_start_quest)
+    adult_f_quest <- ifelse(tmean < params$adult_max_quest, 
+                          adult_quest_slope*(tmean-params$adult_start_quest),
+                      -adult_quest_slope*(tmean-params$adult_max_quest) + 1 )
+    adult_f_quest <- ifelse(adult_f_quest>1,1,ifelse(adult_f_quest<0,0,adult_f_quest))
+    
+    # now actually calculate the questing ticks each day
+    dec31_ind <- tot_day - adult_questing_start_day + 1
+    for (i in 1:length(adult_days))
+    {
+      adult_engorged_long[i] <- adult_active * adult_f_quest[adult_days[i]] * params$adult_host_find
+      adult_active <- adult_active - (adult_active * adult_f_quest[adult_days[i]] * params$adult_host_find) - ifelse(adult_f_quest[adult_days[i]]>0, adult_active * adult_f_quest[adult_days[i]] * params$adult_mort,0)
+      if (i == (dec31_ind + adult_questing_end_day)) adult_active<-0
+    }
+
+    adult_engorged <- c(sum(adult_engorged_long[1:dec31_ind]),adult_engorged_long[(dec31_ind+2):length(adult_engorged_long)])
+    adult_engorged <- adult_engorged/sum(adult_engorged)
+    
+    adult_engorged <- lag(adult_engorged,7)
+    adult_engorged <- ifelse(is.na(adult_engorged),0,adult_engorged)
+
+    # fraction of cohort oviposited on each day
+    ovi <- numeric(tot_day)
+    for (i in 1:(tot_day-1))
+    {
+      i1 <- i+1
+      dd6 <- c(rep(0,i),cumsum(ifelse(tmean[i1:tot_day]>6,tmean[i1:tot_day]-6,0)))
+      # ovi_prob is prob of oviposition on each day if engorged is on day i
+      ovi_prob <- pnorm(dd6,params$ovi_m,params$ovi_sd) - pnorm(lag(dd6,n=1,default = 0),params$ovi_m,params$ovi_sd)
+      ovi <- ovi + adult_engorged[i] * ovi_prob
+    }
+   
+
     # fraction of cohort eclosed on each day
     ecl <- rep(0, tot_day)
     for (i in 1:(tot_day-1))
@@ -212,7 +271,8 @@ library(mgcv)
     larvae = peak_e_example * exp(-0.5* ((day-tau_e_example)/mu_e_example)^2 ) + ifelse(day<=tau_l_example,0, peak_l_example * exp(-0.5 * (log((day-tau_l_example)/mu_l_example)/sigma_l_example)^2 ))
   )
   
-  pdf('figures/phenomenological_example.pdf',width=7.25,height=3)
+  
+  pdf('/Users/dallen@middlebury.edu/My Drive/Research/lyme/2024/pheno_manu/figures/phenomenological_example.pdf',width=7.25,height=3)
   
   pheno_example_data %>%
     ggplot(aes(day,larvae)) +
@@ -227,11 +287,11 @@ library(mgcv)
              y=peak_e_example+1, yend=peak_e_example+1, 
              arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
     annotate('text',x=(50+tau_e_example)/2,y=peak_e_example+3,label=expression(tau['e'])) +
-    annotate('segment',
-             x = tau_e_example, xend = tau_e_example, 
-             y = 0, yend = peak_e_example,
-             arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
-    annotate('text',x=tau_e_example+4,y=peak_e_example/2,label=expression('H'['e'])) +
+    #annotate('segment',
+    #         x = tau_e_example, xend = tau_e_example, 
+    #         y = 0, yend = peak_e_example,
+    #         arrow = arrow(ends='both', length = unit(0.1,'cm'))) +
+    #annotate('text',x=tau_e_example+4,y=peak_e_example/2,label=expression('H'['e'])) +
     annotate('text',x=tau_e_example,y=peak_e_example+6,label=expression(paste("Shape parameter ",sigma['e']))) +
     annotate('segment', 
              x=50, xend = tau_l_example,
@@ -460,7 +520,7 @@ library(mgcv)
   
   
   phenomological_site_n_param <- 8*length(mysites) ## seven for phenom model plus dispersion (=8) for each site
-  phenomological_mean_n_param <- 7 + 2*length(mysites) ## seven for single phenom model plus max and dispersion for each site
+  phenomological_mean_n_param <- 6 + 2*length(mysites) ## seven for single phenom model plus max and dispersion for each site
   mechanistic_site_n_param <- 2*length(mysites) ## max and dispersion for each site
   mechanistic_mean_n_param <- 2*length(mysites) ## max and dispersion for each site
 
@@ -501,7 +561,7 @@ library(mgcv)
     labs(x = '', y = yaxis) +
     theme_bw() +
     theme(legend.position="none")
-  pdf('figures/pheno_bysite.pdf',width=7,height=8)  
+  pdf('/Users/dallen@middlebury.edu/My Drive/Research/lyme/2024/pheno_manu/figures/pheno_bysite.pdf',width=7,height=8)  
    p1
   dev.off()
 }
@@ -545,19 +605,6 @@ library(mgcv)
     group_by(site) %>%
     summarise(elev = mean(elev))
   
-  
-  summary_data %>%
-    filter(mod_type %in% c('Smoothed', 'Site mechanistic')) %>%
-    mutate(mod_type = ifelse(mod_type=="Smoothed",'Obs','Mod')) %>%
-    select(site,mod_type, late_frac) %>%
-    pivot_wider(names_from = mod_type, values_from = late_frac) %>%
-    left_join(siteelev) %>%
-    ggplot() +
-    geom_segment(aes(x=elev, xend = elev, y=Obs, yend=Mod), arrow = arrow(length = unit(0.02,'npc'))) +
-    geom_point(aes(x=elev, y = Obs)) +
-    geom_point(aes(x=elev, y = Mod), pch = 1)
-  
-  
   p2 <- summary_data %>%
     select(-when_early, -when_late, -larva_early, -larva_late) %>%
     pivot_wider(names_from = mod_type, values_from = late_frac) %>%
@@ -570,9 +617,61 @@ library(mgcv)
     labs(x = 'Observed late-summer fraction', y = 'Predicted late-summer fraction')
   
   
-  pdf('figures/early_v_late.pdf',width=4,height=4)  
+  pdf('/Users/dallen@middlebury.edu/My Drive/Research/lyme/2024/pheno_manu/figures/early_v_late.pdf',width=4,height=4)  
     p2
   dev.off()
+
+  summary_data %>%
+    select(-when_early, -when_late, -larva_early, -larva_late) %>%
+    pivot_wider(names_from = mod_type, values_from = late_frac) %>% 
+    lm(`Site mechanistic` ~ Smoothed, data = .) %>%
+    summary()
+  
+  summary_data %>%
+    select(-when_early, -when_late, -larva_early, -larva_late) %>%
+    pivot_wider(names_from = mod_type, values_from = late_frac) %>% 
+    ungroup() %>%
+    summarise(mean(abs(`Site mechanistic`- Smoothed)))
+    
+}
+
+
+## Make a map of the sites
+{
+  require(leaflet)
+  site_loc <- tibble(
+    site = c('BRF', 'Chipman', 'Cyrstal', 'Foote', 'Frost', 'Gilmore', 'Gorge', 'Jackson', 'Lourie', 'Major', 'SPIN', 'Snowbowl', 'UpperChipman'),
+    lat = c( 44.0314,  44.0338,  43.9453,  44.0127,  43.9638,  43.9605,  43.9724,  43.9973,  44.0707,  44.0238,  43.9600,  43.9351,  44.0243),
+    lon = c(-73.0820, -73.1609, -72.9675, -73.1371, -73.0034, -72.9795, -73.0738, -73.2011, -73.2605, -73.2613, -73.0288, -72.9511, -73.1626),
+    larvae = c(1,1,0,rep(1,10))
+  )
+  
+  site_loc %>%
+    mutate(larvae_color = ifelse(larvae, 'black','transparent')) %>%
+    leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
+    addCircleMarkers(radius = 3, 
+                     fillColor = ~larvae_color, 
+                     color = 'black', 
+                     opacity = 1, 
+                     fillOpacity = 1,
+                     weight = 2) %>%
+    addProviderTiles(providers$Esri.NatGeoWorldMap, options = tileOptions(opacity =  1)) %>% # I also like providers$CartoDB
+    setMaxBounds(-73.27,43.92,-72.94,44.08) %>%
+    addMiniMap(position = 'topright',
+               tiles = providers$Stadia.StamenTonerLite,
+               width = 115, height = 115,
+               zoomLevelFixed = 5) %>%
+    addScaleBar(options = scaleBarOptions(imperial = F))
+}
+
+### Pheno consistent year to year?
+{
+  samples <- read_csv('data/drag_sampling.csv')  
+  samples %>%
+    mutate( year = as.factor(year(date))) %>%
+    ggplot(aes(x = julian, y = larva, color = year)) +
+    geom_smooth(se = F, span = 0.5) +
+    facet_wrap(~site, scale = 'free_y')
   
 }
 
