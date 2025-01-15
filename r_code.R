@@ -1,7 +1,7 @@
 # Analysis Code for 
 # "A mechanistic model explains variation in larval  
 # tick questing phenology along an elevation gradient"
-# Submitted ____????
+# Submitted Sept 2024, re-submitted Jan 2025
 
 require(tidyverse)
 require(bbmle)
@@ -12,22 +12,6 @@ library(mgcv)
 {
   samples <- read_csv('data/drag_sampling.csv')  
   samples %>% summarise(n(), median(larva), mean(larva), sd(larva) )
-  
-  samples %>%
-    mutate(year = year(date)) %>%
-    count(site, year) %>%
-    summarise(mean(n), sd(n))
-  
-  samples %>% filter(site %in% c("Snowbowl", "Gilmore"), larva >0) 
-  
-  samples %>%
-    filter(elev < 200) %>%
-    mutate(year = year(date), el = ifelse(julian>213,'late','early')) %>%
-    group_by(year,el) %>%
-    summarise(n=sum(larva)) %>%
-    pivot_wider(names_from = el, values_from = n)
-    
-  
 }
 
 # Define the mechanistic model and specify its parameters
@@ -663,15 +647,3 @@ library(mgcv)
                zoomLevelFixed = 5) %>%
     addScaleBar(options = scaleBarOptions(imperial = F))
 }
-
-### Pheno consistent year to year?
-{
-  samples <- read_csv('data/drag_sampling.csv')  
-  samples %>%
-    mutate( year = as.factor(year(date))) %>%
-    ggplot(aes(x = julian, y = larva, color = year)) +
-    geom_smooth(se = F, span = 0.5) +
-    facet_wrap(~site, scale = 'free_y')
-  
-}
-
