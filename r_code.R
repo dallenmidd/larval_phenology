@@ -328,21 +328,21 @@ library(mgcv)
     param_guess_ph[['mean']] <- list(peak_e = 10, tau_e = 150, mu_e = 15, peak_l = 27, tau_l = 200, mu_l = 50, sigma_l =0.2, k = 0.1)
     
     param_guess_me <- list()
-    param_guess_me[['Foote']] <- list(peak_mult=5000, k = 0.1)
+    param_guess_me[['Foote']] <- list(peak_mult=6000, k = 0.12)
     param_guess_me[['Chipman']] <- list(peak_mult=5000, k = 0.1)
-    param_guess_me[['Major']] <- list(peak_mult=5000, k = 0.1)
-    param_guess_me[['Lourie']] <- list(peak_mult=5000, k = 0.1)
+    param_guess_me[['Major']] <- list(peak_mult=7000, k = 0.15)
+    param_guess_me[['Lourie']] <- list(peak_mult=3000, k = 0.09)
     param_guess_me[['Jackson']] <- list(peak_mult=5000, k = 0.1)
     
-    param_guess_me[['UpperChipman']] <- list(peak_mult=750, k = 0.08)
+    param_guess_me[['UpperChipman']] <- list(peak_mult=500, k = 0.06)
     param_guess_me[['Gorge']] <- list(peak_mult=750, k = 0.08)
     param_guess_me[['BRF']] <- list(peak_mult=750, k = 0.08)
     
-    param_guess_me[['BRF2']] <- list(peak_mult=50, k = 0.02)
-    param_guess_me[['Frost']] <- list(peak_mult=50, k = 0.02) 
+    param_guess_me[['BRF2']] <- list(peak_mult=100, k = 0.05)
+    param_guess_me[['Frost']] <- list(peak_mult=20, k = 0.02) 
     param_guess_me[['SPIN']] <- list(peak_mult=50, k = 0.02)
     param_guess_me[['Gilmore']] <- list(peak_mult=50, k = 0.02) 
-    param_guess_me[['Snowbowl']] <- list(peak_mult=10, k = 0.02) 
+    param_guess_me[['Snowbowl']] <- list(peak_mult=10, k = 0.01) 
     
         
     make_parscale <- function(x)
@@ -388,7 +388,7 @@ library(mgcv)
   
     # loop through the sites and fit each model for each site
     # the mean-level models do not fit a phenology at each site
-    # but just the height of the peaks
+    # but just scales the density
     for (which_site in mysites)
     {
       
@@ -503,10 +503,10 @@ library(mgcv)
   }
   
   
-  phenomological_site_n_param <- 8*length(mysites) ## seven for phenom model plus dispersion (=8) for each site
-  phenomological_mean_n_param <- 6 + 2*length(mysites) ## seven for single phenom model plus max and dispersion for each site
-  mechanistic_site_n_param <- 2*length(mysites) ## max and dispersion for each site
-  mechanistic_mean_n_param <- 2*length(mysites) ## max and dispersion for each site
+  phenomological_site_n_param <- 8*length(mysites) ## six for phenom model plus density-scaling and dispersion (=8) for each site
+  phenomological_mean_n_param <- 6 + 2*length(mysites) ## six for single phenom model plus density-scaling and dispersion for each site
+  mechanistic_site_n_param <- 2*length(mysites) ## density-scaling and dispersion for each site
+  mechanistic_mean_n_param <- 2*length(mysites) ## density-scaling and dispersion for each site
 
   phenomological_site_aic <- phenomological_site_nll + 2*phenomological_site_n_param
   phenomological_mean_aic <- phenomological_mean_nll + 2*phenomological_mean_n_param
@@ -618,7 +618,6 @@ library(mgcv)
     summarise(mean(abs(`Site mechanistic`- Smoothed)))
     
 }
-
 
 ## Make a map of the sites
 {
