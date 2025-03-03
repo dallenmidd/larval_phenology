@@ -1,6 +1,6 @@
-# larval_phenology
+# Data and code for "A mechanistic model explains variation in larval tick questing phenology an elevation gradient"
 
-Data and R code for a manuscript in submission. The manuscript measures how larval _Ixodes scapularis_ questing phenology changes along an elevation gradient. It then presents a mechanistic, temperature-driven model which explains that variation in questing phenology.
+Data and R code for a manuscript in press. The manuscript measures how larval _Ixodes scapularis_ questing phenology changes along an elevation gradient. It then presents a mechanistic, temperature-driven model which explains that variation in questing phenology.
 
 * `data/drag_sampling.csv` gives the raw data from the study. Rows are individual 200 m<sup>2</sup> tick drag cloth samples. The `csv` has the following columns.
   * `site` the name of the location where the drag-cloth sample took place.
