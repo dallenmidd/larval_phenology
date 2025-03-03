@@ -1,12 +1,11 @@
 # Analysis Code for 
 # "A mechanistic model explains variation in larval  
 # tick questing phenology along an elevation gradient"
-# Submitted Sept 2024, re-submitted Jan 2025
 
 require(tidyverse)
 require(bbmle)
 require(cowplot)
-library(mgcv)
+require(mgcv)
 
 # Descriptive stats in results
 {
